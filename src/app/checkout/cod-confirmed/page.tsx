@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
     CheckCircle, Package, ArrowRight, Home, MapPin,
     Phone, Wallet, Printer, ShoppingBag, Tag,
+    Download, ImageIcon, FileText, Loader2,
 } from 'lucide-react';
 
 interface CODOrderData {
@@ -30,6 +31,8 @@ interface CODOrderData {
 
 export default function CODConfirmedPage() {
     const [order, setOrder] = useState<CODOrderData | null>(null);
+    const [downloading, setDownloading] = useState<'pdf' | 'png' | null>(null);
+    const invoiceRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const raw = sessionStorage.getItem('cod_order');
@@ -38,6 +41,78 @@ export default function CODConfirmedPage() {
             sessionStorage.removeItem('cod_order');
         }
     }, []);
+
+    const handleDownloadPNG = async () => {
+        if (!invoiceRef.current) return;
+        setDownloading('png');
+        try {
+            const html2canvas = (await import('html2canvas')).default;
+            const canvas = await html2canvas(invoiceRef.current, {
+                scale: 3,
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                logging: false,
+            });
+            const link = document.createElement('a');
+            link.download = `invoice-${order?.orderNumber || 'order'}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        } catch (err) {
+            console.error('PNG export failed:', err);
+        } finally {
+            setDownloading(null);
+        }
+    };
+
+    const handleDownloadPDF = async () => {
+        if (!invoiceRef.current) return;
+        setDownloading('pdf');
+        try {
+            const html2canvas = (await import('html2canvas')).default;
+            const { jsPDF } = await import('jspdf');
+
+            const canvas = await html2canvas(invoiceRef.current, {
+                scale: 3,
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                logging: false,
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4',
+            });
+
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            const imgWidth = pageWidth - 20; // 10mm margin each side
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+            // If content fits on one page
+            if (imgHeight <= pageHeight - 20) {
+                pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
+            } else {
+                // Multi-page support
+                let yOffset = 0;
+                const pageContentHeight = pageHeight - 20;
+                let pageNum = 0;
+                while (yOffset < imgHeight) {
+                    if (pageNum > 0) pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 10, 10 - yOffset, imgWidth, imgHeight);
+                    yOffset += pageContentHeight;
+                    pageNum++;
+                }
+            }
+
+            pdf.save(`invoice-${order?.orderNumber || 'order'}.pdf`);
+        } catch (err) {
+            console.error('PDF export failed:', err);
+        } finally {
+            setDownloading(null);
+        }
+    };
 
     if (!order) {
         return (
@@ -93,8 +168,9 @@ export default function CODConfirmedPage() {
             </div>
 
             {/* Invoice Card */}
-            <div style={{ maxWidth: 680, margin: '-24px auto 0', padding: '0 20px 60px' }}>
+            <div style={{ maxWidth: 680, margin: '-24px auto 0', padding: '0 16px 60px' }}>
                 <motion.div
+                    ref={invoiceRef}
                     id="printable-invoice"
                     initial={{ opacity: 0, y: 24 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -132,10 +208,9 @@ export default function CODConfirmedPage() {
 
                     {/* Payment Method Badge */}
                     <div style={{
-                        margin: '0 28px', padding: '10px 14px',
+                        margin: '20px 28px 0', padding: '10px 14px',
                         background: 'rgba(245,197,24,0.06)', borderRadius: 10,
                         display: 'flex', alignItems: 'center', gap: 8,
-                        marginTop: 20,
                     }}>
                         <Wallet size={16} color="#e6b800" />
                         <span style={{ fontSize: 12, fontWeight: 700, color: '#b8960a' }}>Cash on Delivery</span>
@@ -274,42 +349,114 @@ export default function CODConfirmedPage() {
                     </div>
                 </motion.div>
 
-                {/* Action Buttons */}
+                {/* ── Action Buttons ── */}
                 <motion.div
                     className="no-print"
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.5 }}
-                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginTop: 28 }}
+                    style={{ marginTop: 24 }}
                 >
-                    <button
-                        onClick={() => window.print()}
-                        style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 8,
-                            padding: '12px 28px', background: '#1a1a1a',
-                            color: '#f5c518', borderRadius: 28, fontSize: 13, fontWeight: 700,
-                            border: 'none', cursor: 'pointer', fontFamily: "'Inter', sans-serif",
-                            transition: 'all 0.2s',
-                        }}
-                    >
-                        <Printer size={15} /> Print Invoice
-                    </button>
-                    <Link href="/shop" style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 8,
-                        padding: '13px 32px', background: 'linear-gradient(135deg, #f5c518, #e6b800)',
-                        color: '#1a1a1a', borderRadius: 28, fontSize: 14, fontWeight: 700,
-                        textDecoration: 'none', fontFamily: "'Inter', sans-serif",
+                    {/* Download buttons row */}
+                    <div style={{
+                        display: 'flex', gap: 10, marginBottom: 12,
+                        flexWrap: 'wrap',
                     }}>
-                        <Package size={16} /> Continue Shopping <ArrowRight size={14} />
-                    </Link>
-                    <Link href="/" style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                        color: '#999', fontSize: 13, textDecoration: 'none', fontWeight: 500,
-                    }}>
-                        <Home size={14} /> Back to Home
-                    </Link>
+                        {/* Download PDF */}
+                        <button
+                            onClick={handleDownloadPDF}
+                            disabled={downloading !== null}
+                            style={{
+                                flex: 1, minWidth: 140,
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                padding: '13px 20px',
+                                background: downloading === 'pdf' ? '#2a2a2a' : '#1a1a1a',
+                                color: '#f5c518', borderRadius: 14, fontSize: 13, fontWeight: 700,
+                                border: '1.5px solid rgba(245,197,24,0.25)', cursor: downloading ? 'wait' : 'pointer',
+                                fontFamily: "'Inter', sans-serif", transition: 'all 0.2s',
+                                opacity: downloading !== null && downloading !== 'pdf' ? 0.5 : 1,
+                            }}
+                        >
+                            {downloading === 'pdf' ? (
+                                <><Loader2 size={15} style={{ animation: 'spin 0.9s linear infinite' }} /> Generating...</>
+                            ) : (
+                                <><FileText size={15} /> Download PDF</>
+                            )}
+                        </button>
+
+                        {/* Download PNG */}
+                        <button
+                            onClick={handleDownloadPNG}
+                            disabled={downloading !== null}
+                            style={{
+                                flex: 1, minWidth: 140,
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                padding: '13px 20px',
+                                background: downloading === 'png' ? 'rgba(245,197,24,0.12)' : 'rgba(245,197,24,0.08)',
+                                color: '#b8960a', borderRadius: 14, fontSize: 13, fontWeight: 700,
+                                border: '1.5px solid rgba(245,197,24,0.3)', cursor: downloading ? 'wait' : 'pointer',
+                                fontFamily: "'Inter', sans-serif", transition: 'all 0.2s',
+                                opacity: downloading !== null && downloading !== 'png' ? 0.5 : 1,
+                            }}
+                        >
+                            {downloading === 'png' ? (
+                                <><Loader2 size={15} style={{ animation: 'spin 0.9s linear infinite' }} /> Generating...</>
+                            ) : (
+                                <><ImageIcon size={15} /> Download PNG</>
+                            )}
+                        </button>
+
+                        {/* Print */}
+                        <button
+                            onClick={() => window.print()}
+                            disabled={downloading !== null}
+                            style={{
+                                flex: 1, minWidth: 140,
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                padding: '13px 20px',
+                                background: '#fff', color: '#555', borderRadius: 14, fontSize: 13, fontWeight: 700,
+                                border: '1.5px solid #e0e0e0', cursor: 'pointer',
+                                fontFamily: "'Inter', sans-serif", transition: 'all 0.2s',
+                                opacity: downloading !== null ? 0.5 : 1,
+                            }}
+                        >
+                            <Printer size={15} /> Print
+                        </button>
+                    </div>
+
+                    {/* Navigation buttons */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                        <Link href="/shop" style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 8, width: '100%',
+                            padding: '14px 32px', background: 'linear-gradient(135deg, #f5c518, #e6b800)',
+                            color: '#1a1a1a', borderRadius: 14, fontSize: 14, fontWeight: 700,
+                            textDecoration: 'none', fontFamily: "'Inter', sans-serif",
+                            justifyContent: 'center',
+                            boxShadow: '0 4px 16px rgba(245,197,24,0.3)',
+                        }}>
+                            <Package size={16} /> Continue Shopping <ArrowRight size={14} />
+                        </Link>
+                        <Link href="/" style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                            color: '#999', fontSize: 13, textDecoration: 'none', fontWeight: 500,
+                            padding: '8px 0',
+                        }}>
+                            <Home size={14} /> Back to Home
+                        </Link>
+                    </div>
                 </motion.div>
             </div>
+
+            <style>{`
+                @keyframes spin { to { transform: rotate(360deg); } }
+                @media (max-width: 480px) {
+                    #printable-invoice { border-radius: 14px !important; }
+                    #printable-invoice > div { padding-left: 16px !important; padding-right: 16px !important; }
+                    #printable-invoice [style*="gridTemplateColumns: '1fr 60px 80px 90px'"] {
+                        grid-template-columns: 1fr 40px 60px 70px !important;
+                    }
+                }
+            `}</style>
         </div>
     );
 }
