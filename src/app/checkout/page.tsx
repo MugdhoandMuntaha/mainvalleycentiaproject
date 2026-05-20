@@ -390,12 +390,14 @@ export default function CheckoutPage() {
                                                 <img src={item.image} alt={item.name} />
                                             </div>
                                             <div className="co-item-info">
-                                                <div className="co-item-name">{item.name}</div>
-                                                {item.size && <span className="co-item-size">Size: {item.size}</span>}
-                                                <div className="co-item-qty">Qty: {item.quantity}</div>
-                                            </div>
-                                            <div className="co-item-price">
-                                                ৳{(item.price * item.quantity).toLocaleString()}
+                                                <div className="co-item-top-row">
+                                                    <div className="co-item-name">{item.name}</div>
+                                                    <div className="co-item-price">৳{(item.price * item.quantity).toLocaleString()}</div>
+                                                </div>
+                                                <div className="co-item-meta">
+                                                    {item.size && <span className="co-item-size">Size: {item.size}</span>}
+                                                    <span className="co-item-qty">Qty: {item.quantity}</span>
+                                                </div>
                                             </div>
                                         </div>
                                     );
@@ -695,31 +697,42 @@ export default function CheckoutPage() {
                 /* ────── Order Items ────── */
                 .co-items { display: flex; flex-direction: column; }
                 .co-item {
-                    display: flex; align-items: center; gap: 12px;
-                    padding: 11px 0;
+                    display: flex; align-items: flex-start; gap: 12px;
+                    padding: 12px 0;
                 }
                 .co-item--border { border-bottom: 1px solid #f0f0f0; }
                 .co-item-img {
-                    width: 54px; height: 54px; border-radius: 10px;
+                    width: 52px; height: 52px; border-radius: 10px;
                     overflow: hidden; flex-shrink: 0;
                     background: #f5f5f0; border: 1px solid #ebebeb;
                 }
                 .co-item-img img { width: 100%; height: 100%; object-fit: cover; }
                 .co-item-info { flex: 1; min-width: 0; }
+                .co-item-top-row {
+                    display: flex; align-items: flex-start;
+                    justify-content: space-between; gap: 8px;
+                    margin-bottom: 4px;
+                }
                 .co-item-name {
                     font-size: 13px; font-weight: 600; color: #1a1a1a;
-                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-                    margin-bottom: 3px;
+                    overflow: hidden; text-overflow: ellipsis;
+                    display: -webkit-box; -webkit-line-clamp: 2;
+                    -webkit-box-orient: vertical; flex: 1; min-width: 0;
+                    line-height: 1.35;
+                }
+                .co-item-price {
+                    font-size: 13px; font-weight: 700; color: #1a1a1a;
+                    white-space: nowrap; flex-shrink: 0; padding-top: 1px;
+                }
+                .co-item-meta {
+                    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+                    margin-top: 4px;
                 }
                 .co-item-size {
                     font-size: 10px; color: #888; background: #f0f0eb;
-                    padding: 1px 6px; border-radius: 4px; display: inline-block;
+                    padding: 1px 6px; border-radius: 4px;
                 }
-                .co-item-qty { font-size: 11px; color: #aaa; margin-top: 3px; }
-                .co-item-price {
-                    font-size: 14px; font-weight: 700; color: #1a1a1a;
-                    white-space: nowrap; flex-shrink: 0;
-                }
+                .co-item-qty { font-size: 11px; color: #aaa; }
 
                 /* ────── Summary ────── */
                 .co-summary-title {
@@ -860,11 +873,19 @@ export default function CheckoutPage() {
                     .co-title { font-size: 20px; }
                     .co-layout { padding: 12px 12px 72px; gap: 12px; }
                     .co-card { padding: 16px 14px; border-radius: 12px; }
-                    .co-item-img { width: 48px; height: 48px; border-radius: 8px; }
+                    .co-item-img { width: 46px; height: 46px; border-radius: 8px; }
                     .co-item-name { font-size: 12px; }
-                    .co-item-price { font-size: 13px; }
+                    .co-item-price { font-size: 12px; }
                     .co-pay-btn { padding: 13px; font-size: 14px; }
                     .co-total-val { font-size: 19px; }
+                    .co-item { gap: 10px; }
+                    .co-summary-title { font-size: 15px; }
+                    .co-pay-name { font-size: 12px; }
+                    .co-pay-desc { font-size: 10px; }
+                    .co-addr-card { padding: 10px 12px; }
+                    .co-addr-label { font-size: 12px; }
+                    .co-addr-name { font-size: 12px; }
+                    .co-addr-text { font-size: 11px; }
                 }
             `}</style>
         </div>
