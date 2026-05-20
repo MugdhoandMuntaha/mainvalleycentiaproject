@@ -250,9 +250,9 @@ export default function CheckoutPage() {
     }
 
     return (
-        <div style={{ minHeight: '100vh', background: '#f8f8f5', fontFamily: "'Inter', sans-serif" }}>
+        <div style={{ minHeight: '100vh', background: '#f8f8f5', fontFamily: "'Inter', sans-serif", overflowX: 'hidden', width: '100%' }}>
             {/* Header */}
-            <div style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)', padding: '28px 0' }}>
+            <div className="checkout-header-outer" style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)', padding: '28px 0' }}>
                 <div className="checkout-header-inner" style={{ maxWidth: 1100, margin: '0 auto', padding: '0 32px' }}>
                     <Link href="/cart" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#999', fontSize: 13, textDecoration: 'none', marginBottom: 12 }}>
                         <ArrowLeft size={16} /> Back to Cart
@@ -406,7 +406,7 @@ export default function CheckoutPage() {
                                 {items.map((item, i) => {
                                     const key = item.size ? `${item.id}-${item.size}` : item.id;
                                     return (
-                                        <div key={key} style={{ display: 'flex', gap: 14, padding: '12px 0', borderBottom: i < items.length - 1 ? '1px solid #f5f5f5' : 'none' }}>
+                                        <div key={key} className="checkout-item-row" style={{ display: 'flex', gap: 14, padding: '12px 0', borderBottom: i < items.length - 1 ? '1px solid #f5f5f5' : 'none' }}>
                                             <div style={{
                                                 width: 56, height: 56, borderRadius: 10, overflow: 'hidden', flexShrink: 0,
                                                 background: '#f5f5f0', border: '1px solid #f0f0f0',
@@ -414,11 +414,11 @@ export default function CheckoutPage() {
                                                 <img src={item.image} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                             </div>
                                             <div style={{ flex: 1, minWidth: 0 }}>
-                                                <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
+                                                <div className="checkout-item-name" style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
                                                 {item.size && <span style={{ fontSize: 11, color: '#888', background: '#f5f5f0', padding: '1px 6px', borderRadius: 4 }}>Size: {item.size}</span>}
                                                 <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>Qty: {item.quantity}</div>
                                             </div>
-                                            <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', whiteSpace: 'nowrap' }}>
+                                            <div className="checkout-item-price" style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', whiteSpace: 'nowrap', flexShrink: 0 }}>
                                                 ৳{(item.price * item.quantity).toLocaleString()}
                                             </div>
                                         </div>
@@ -593,30 +593,90 @@ export default function CheckoutPage() {
 
             <style>{`
                 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-                @media (max-width: 768px) {
+
+                /* Base: ensure checkout wrapper never overflows */
+                .checkout-page-root {
+                    overflow-x: hidden;
+                    width: 100%;
+                    max-width: 100vw;
+                }
+
+                /* Desktop grid */
+                .checkout-grid {
+                    box-sizing: border-box;
+                }
+
+                /* ---- Tablet (≤1100px) ---- */
+                @media (max-width: 1100px) {
                     .checkout-grid {
-                        grid-template-columns: 1fr !important;
-                        padding: 16px 16px 60px !important;
+                        grid-template-columns: 1fr 340px !important;
+                        padding: 24px 24px 80px !important;
                         gap: 20px !important;
-                        width: 100% !important;
-                        max-width: 100% !important;
-                        box-sizing: border-box !important;
+                    }
+                }
+
+                /* ---- Mobile (≤768px) ---- */
+                @media (max-width: 768px) {
+                    .checkout-header-outer {
+                        padding: 20px 0 !important;
                     }
                     .checkout-header-inner {
                         padding: 0 16px !important;
+                        max-width: 100% !important;
+                        box-sizing: border-box !important;
                     }
                     .checkout-header-inner h1 {
                         font-size: 22px !important;
                     }
+                    .checkout-header-inner p {
+                        font-size: 12px !important;
+                    }
+                    .checkout-grid {
+                        grid-template-columns: 1fr !important;
+                        padding: 16px 16px 60px !important;
+                        gap: 16px !important;
+                        max-width: 100% !important;
+                        width: 100% !important;
+                        box-sizing: border-box !important;
+                        margin: 0 !important;
+                    }
                     .checkout-card {
-                        padding: 20px 16px !important;
+                        padding: 18px 14px !important;
+                        border-radius: 12px !important;
+                        width: 100% !important;
+                        box-sizing: border-box !important;
+                        overflow: hidden !important;
                     }
                     .checkout-summary {
                         position: static !important;
                     }
                     .checkout-form-row {
                         grid-template-columns: 1fr !important;
-                        gap: 12px !important;
+                        gap: 10px !important;
+                    }
+                    .checkout-item-row {
+                        gap: 10px !important;
+                    }
+                    .checkout-item-name {
+                        font-size: 13px !important;
+                    }
+                    .checkout-item-price {
+                        font-size: 13px !important;
+                        min-width: 0 !important;
+                    }
+                }
+
+                /* ---- Small Mobile (≤480px) ---- */
+                @media (max-width: 480px) {
+                    .checkout-grid {
+                        padding: 12px 12px 60px !important;
+                    }
+                    .checkout-card {
+                        padding: 16px 12px !important;
+                        border-radius: 10px !important;
+                    }
+                    .checkout-header-inner h1 {
+                        font-size: 20px !important;
                     }
                 }
             `}</style>
