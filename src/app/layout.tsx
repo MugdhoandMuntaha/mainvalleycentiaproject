@@ -1,7 +1,12 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { LayoutShell } from "@/components/LayoutShell";
 import ScrollToTop from "@/components/ScrollToTop";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
 
 export const metadata: Metadata = {
   title: "Valleycentia — Premium Fashion & Accessories",

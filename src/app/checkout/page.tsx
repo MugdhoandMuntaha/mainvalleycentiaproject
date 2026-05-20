@@ -598,6 +598,9 @@ export default function CheckoutPage() {
                         grid-template-columns: 1fr !important;
                         padding: 16px 16px 60px !important;
                         gap: 20px !important;
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        box-sizing: border-box !important;
                     }
                     .checkout-header-inner {
                         padding: 0 16px !important;
