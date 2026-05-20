@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
     ArrowLeft, MapPin, CreditCard, Loader2, Plus, Shield, Truck, Package,
-    ChevronRight, Home, Briefcase, Check, X, Lock, Wallet, Edit3, Trash2, Save, Tag,
+    Home, Briefcase, Check, X, Lock, Wallet, Edit3, Trash2, Save, Tag,
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useCart } from '@/lib/CartContext';
@@ -43,7 +43,6 @@ export default function CheckoutPage() {
     const [promoCode, setPromoCode] = useState<string | null>(null);
     const [promoDiscount, setPromoDiscount] = useState(0);
 
-    // Determine shipping fee based on selected address region
     const selectedAddress = addresses.find(a => a.id === selectedAddr);
     const isDhaka = selectedAddress?.city?.toLowerCase().includes('dhaka') ?? false;
     const shippingFee = isDhaka ? shippingFeeDhaka : shippingFeeOutside;
@@ -62,15 +61,12 @@ export default function CheckoutPage() {
             const t = threshold as { amount?: number } | null;
             const f = fee as { dhaka?: number; outside_dhaka?: number; amount?: number } | null;
             if (t?.amount) setFreeShippingThreshold(t.amount);
-            // New two-tier format
             if (f?.dhaka) setShippingFeeDhaka(f.dhaka);
             if (f?.outside_dhaka) setShippingFeeOutside(f.outside_dhaka);
-            // Fallback for old single-value format
             if (!f?.dhaka && f?.amount) { setShippingFeeDhaka(f.amount); setShippingFeeOutside(f.amount); }
         }).catch(() => { });
     }, []);
 
-    // Load coupon from sessionStorage (set by cart page)
     useEffect(() => {
         try {
             const raw = sessionStorage.getItem('checkout_coupon');
@@ -85,7 +81,6 @@ export default function CheckoutPage() {
     }, []);
 
     useEffect(() => {
-        // Only redirect if hydration is complete and cart is empty
         if (isHydrated && !authLoading && items.length === 0 && !navigatingAway.current) {
             router.push('/cart');
         }
@@ -96,7 +91,6 @@ export default function CheckoutPage() {
         setAddrLoading(true);
         const data = await getUserAddresses(user.id);
         setAddresses(data);
-        // Don't auto-select — user must explicitly choose an address
         setAddrLoading(false);
     }, [user]);
 
@@ -161,7 +155,6 @@ export default function CheckoutPage() {
         setError('');
 
         try {
-            // Get user's access token for RLS
             const supabase = createClient();
             const { data: { session } } = await supabase.auth.getSession();
             const accessToken = session?.access_token;
@@ -188,16 +181,13 @@ export default function CheckoutPage() {
             };
 
             if (paymentMethod === 'cod') {
-                // COD flow — create order directly, no payment gateway
                 const res = await fetch('/api/payment/cod', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(orderPayload),
                 });
-
                 const data = await res.json();
                 if (data.success) {
-                    // Store order data for the confirmation page FIRST
                     sessionStorage.setItem('cod_order', JSON.stringify({
                         orderNumber: data.orderNumber,
                         items: data.items,
@@ -210,24 +200,19 @@ export default function CheckoutPage() {
                     }));
                     navigatingAway.current = true;
                     clearCart();
-                    // Use hard navigation to avoid useEffect redirect race condition
                     window.location.href = '/checkout/cod-confirmed';
                 } else {
                     setError(data.error || 'Failed to place order');
                     setPaying(false);
                 }
             } else {
-                // Online payment flow — SSLCommerz
                 const res = await fetch('/api/payment/init', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(orderPayload),
                 });
-
                 const data = await res.json();
                 if (data.url) {
-                    // Don't clear cart here — if user backs out of payment gateway,
-                    // cart items should be preserved. Cart is cleared on the success page.
                     window.location.href = data.url;
                 } else {
                     setError(data.error || 'Payment initiation failed');
@@ -238,98 +223,84 @@ export default function CheckoutPage() {
             setError('Network error. Please try again.');
             setPaying(false);
         }
-
     };
 
     if (authLoading || !user || !isHydrated) {
         return (
-            <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f8f5' }}>
-                <Loader2 size={28} color="#f5c518" style={{ animation: 'spin 1s linear infinite' }} />
+            <div className="co-loading">
+                <Loader2 size={28} color="#f5c518" className="co-spinner" />
             </div>
         );
     }
 
     return (
-        <div style={{ minHeight: '100vh', background: '#f8f8f5', fontFamily: "'Inter', sans-serif", overflowX: 'hidden', width: '100%' }}>
-            {/* Header */}
-            <div className="checkout-header-outer" style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)', padding: '28px 0' }}>
-                <div className="checkout-header-inner" style={{ maxWidth: 1100, margin: '0 auto', padding: '0 32px' }}>
-                    <Link href="/cart" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#999', fontSize: 13, textDecoration: 'none', marginBottom: 12 }}>
-                        <ArrowLeft size={16} /> Back to Cart
+        <div className="co-root">
+            {/* ── Header ── */}
+            <div className="co-header">
+                <div className="co-header-inner">
+                    <Link href="/cart" className="co-back-link">
+                        <ArrowLeft size={15} /> Back to Cart
                     </Link>
-                    <h1 style={{ fontFamily: "'Outfit', sans-serif", fontSize: 28, fontWeight: 800, color: '#fff', margin: 0 }}>Checkout</h1>
-                    <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>Complete your order securely</p>
+                    <h1 className="co-title">Checkout</h1>
+                    <p className="co-subtitle">Complete your order securely</p>
                 </div>
             </div>
 
-            {/* Main */}
-            <div className="checkout-grid" style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 32px 80px', display: 'grid', gridTemplateColumns: '1fr 380px', gap: 28, alignItems: 'start' }}>
-                {/* Left Column */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* ── Main Layout ── */}
+            <div className="co-layout">
+
+                {/* ── Left Column ── */}
+                <div className="co-left">
+
                     {/* Step 1: Address */}
-                    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-                        <div className="checkout-card" style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', border: '1px solid #f0f0f0', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-                                <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#1a1a1a', color: '#f5c518', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800 }}>1</div>
-                                <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: 18, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Delivery Address</h2>
+                    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+                        <div className="co-card">
+                            <div className="co-step-header">
+                                <div className="co-step-num">1</div>
+                                <h2 className="co-step-title">Delivery Address</h2>
                             </div>
 
                             {addrLoading ? (
-                                <div style={{ display: 'flex', justifyContent: 'center', padding: 30 }}>
-                                    <Loader2 size={20} color="#f5c518" style={{ animation: 'spin 1s linear infinite' }} />
+                                <div className="co-center-pad">
+                                    <Loader2 size={20} color="#f5c518" className="co-spinner" />
                                 </div>
                             ) : addresses.length === 0 && !showAddrForm ? (
-                                <div style={{ textAlign: 'center', padding: '30px 0' }}>
-                                    <MapPin size={32} style={{ color: '#ccc', marginBottom: 8 }} />
-                                    <p style={{ color: '#888', fontSize: 14, fontWeight: 600 }}>No saved addresses</p>
-                                    <button onClick={openAddrCreate} style={accentBtn}>
+                                <div className="co-empty-addr">
+                                    <MapPin size={32} color="#ccc" />
+                                    <p>No saved addresses</p>
+                                    <button onClick={openAddrCreate} className="co-accent-btn">
                                         <Plus size={14} /> Add Address
                                     </button>
                                 </div>
                             ) : (
                                 <>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                    <div className="co-addr-list">
                                         {addresses.map(addr => (
-                                            <div key={addr.id} style={{
-                                                display: 'flex', alignItems: 'flex-start', gap: 14,
-                                                padding: '14px 16px', borderRadius: 12,
-                                                border: selectedAddr === addr.id ? '1.5px solid #f5c518' : '1px solid #f0f0f0',
-                                                background: selectedAddr === addr.id ? 'rgba(245,197,24,0.03)' : '#fafafa',
-                                                transition: 'all 0.2s',
-                                            }}>
-                                                <div
-                                                    onClick={() => setSelectedAddr(selectedAddr === addr.id ? null : addr.id)}
-                                                    style={{
-                                                        width: 18, height: 18, borderRadius: '50%', marginTop: 4, flexShrink: 0,
-                                                        border: selectedAddr === addr.id ? '5px solid #f5c518' : '2px solid #ccc',
-                                                        background: '#fff', transition: 'all 0.2s', cursor: 'pointer',
-                                                    }}
-                                                />
-                                                <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => setSelectedAddr(selectedAddr === addr.id ? null : addr.id)}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                                        {addr.label === 'Office' ? <Briefcase size={14} color="#4285f4" /> : <Home size={14} color="#f5c518" />}
-                                                        <span style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>{addr.label}</span>
-                                                        {addr.is_default && <span style={{ fontSize: 10, fontWeight: 700, color: '#f5c518', background: 'rgba(245,197,24,0.1)', padding: '1px 6px', borderRadius: 10 }}>Default</span>}
+                                            <div
+                                                key={addr.id}
+                                                className={`co-addr-card${selectedAddr === addr.id ? ' co-addr-card--selected' : ''}`}
+                                                onClick={() => setSelectedAddr(selectedAddr === addr.id ? null : addr.id)}
+                                            >
+                                                <div className={`co-radio${selectedAddr === addr.id ? ' co-radio--on' : ''}`} />
+                                                <div className="co-addr-body">
+                                                    <div className="co-addr-top">
+                                                        {addr.label === 'Office'
+                                                            ? <Briefcase size={13} color="#4285f4" />
+                                                            : <Home size={13} color="#f5c518" />}
+                                                        <span className="co-addr-label">{addr.label}</span>
+                                                        {addr.is_default && <span className="co-default-badge">Default</span>}
                                                     </div>
-                                                    <div style={{ fontSize: 13, fontWeight: 600, color: '#444' }}>{addr.full_name}</div>
-                                                    <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5, marginTop: 2 }}>
+                                                    <div className="co-addr-name">{addr.full_name}</div>
+                                                    <div className="co-addr-text">
                                                         {addr.address_line_1}{addr.address_line_2 ? `, ${addr.address_line_2}` : ''}, {addr.city}, {addr.state} {addr.postal_code}
                                                     </div>
-                                                    <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>{addr.phone}</div>
+                                                    <div className="co-addr-phone">{addr.phone}</div>
                                                 </div>
-                                                <div style={{ display: 'flex', gap: 4, flexShrink: 0, marginTop: 2 }}>
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); openAddrEdit(addr); }}
-                                                        style={addrActionBtn}
-                                                        title="Edit address"
-                                                    >
+                                                <div className="co-addr-actions" onClick={e => e.stopPropagation()}>
+                                                    <button onClick={() => openAddrEdit(addr)} className="co-icon-btn" title="Edit">
                                                         <Edit3 size={13} color="#888" />
                                                     </button>
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(addr.id); }}
-                                                        style={addrActionBtn}
-                                                        title="Delete address"
-                                                    >
+                                                    <button onClick={() => setDeleteConfirmId(addr.id)} className="co-icon-btn" title="Delete">
                                                         <Trash2 size={13} color="#ef4444" />
                                                     </button>
                                                 </div>
@@ -337,57 +308,65 @@ export default function CheckoutPage() {
                                         ))}
                                     </div>
                                     {!showAddrForm && (
-                                        <button onClick={openAddrCreate} style={{ ...accentBtn, marginTop: 12, fontSize: 12 }}>
+                                        <button onClick={openAddrCreate} className="co-accent-btn co-add-btn">
                                             <Plus size={13} /> Add New Address
                                         </button>
                                     )}
                                 </>
                             )}
 
-                            {/* Address Form (Add / Edit) */}
+                            {/* Address Form */}
                             {showAddrForm && (
-                                <div style={{ marginTop: 16, padding: 20, background: '#fafafa', borderRadius: 12, border: '1px solid #f0f0f0' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                                        <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>
-                                            {editingAddrId ? 'Edit Address' : 'New Address'}
-                                        </h3>
-                                        <button onClick={() => { setShowAddrForm(false); setEditingAddrId(null); setAddrForm(emptyAddress); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                                <div className="co-form-wrap">
+                                    <div className="co-form-header">
+                                        <h3>{editingAddrId ? 'Edit Address' : 'New Address'}</h3>
+                                        <button onClick={() => { setShowAddrForm(false); setEditingAddrId(null); setAddrForm(emptyAddress); }} className="co-close-btn">
                                             <X size={16} color="#999" />
                                         </button>
                                     </div>
-                                    <div className="checkout-form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                                    <div className="co-form-grid">
                                         <div>
-                                            <label style={formLabel}>Label</label>
-                                            <select value={addrForm.label} onChange={e => setAddrForm(p => ({ ...p, label: e.target.value }))} style={{ ...formInput, cursor: 'pointer' }}>
+                                            <label className="co-label">Label</label>
+                                            <select value={addrForm.label} onChange={e => setAddrForm(p => ({ ...p, label: e.target.value }))} className="co-input">
                                                 {['Home', 'Office', 'Other'].map(l => <option key={l}>{l}</option>)}
                                             </select>
                                         </div>
                                         <div>
-                                            <label style={formLabel}>Full Name *</label>
-                                            <input value={addrForm.full_name} onChange={e => setAddrForm(p => ({ ...p, full_name: e.target.value }))} style={formInput} />
+                                            <label className="co-label">Full Name *</label>
+                                            <input value={addrForm.full_name} onChange={e => setAddrForm(p => ({ ...p, full_name: e.target.value }))} className="co-input" />
                                         </div>
                                     </div>
-                                    <div style={{ marginBottom: 10 }}>
-                                        <label style={formLabel}>Phone *</label>
-                                        <input value={addrForm.phone} onChange={e => setAddrForm(p => ({ ...p, phone: e.target.value }))} style={formInput} />
+                                    <div className="co-form-field">
+                                        <label className="co-label">Phone *</label>
+                                        <input value={addrForm.phone} onChange={e => setAddrForm(p => ({ ...p, phone: e.target.value }))} className="co-input" />
                                     </div>
-                                    <div style={{ marginBottom: 10 }}>
-                                        <label style={formLabel}>Address *</label>
-                                        <input value={addrForm.address_line_1} onChange={e => setAddrForm(p => ({ ...p, address_line_1: e.target.value }))} style={formInput} />
+                                    <div className="co-form-field">
+                                        <label className="co-label">Address Line 1 *</label>
+                                        <input value={addrForm.address_line_1} onChange={e => setAddrForm(p => ({ ...p, address_line_1: e.target.value }))} className="co-input" />
                                     </div>
-                                    <div className="checkout-form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-                                        <div><label style={formLabel}>City *</label><input value={addrForm.city} onChange={e => setAddrForm(p => ({ ...p, city: e.target.value }))} style={formInput} /></div>
-                                        <div><label style={formLabel}>State *</label><input value={addrForm.state} onChange={e => setAddrForm(p => ({ ...p, state: e.target.value }))} style={formInput} /></div>
+                                    <div className="co-form-grid">
+                                        <div>
+                                            <label className="co-label">City *</label>
+                                            <input value={addrForm.city} onChange={e => setAddrForm(p => ({ ...p, city: e.target.value }))} className="co-input" />
+                                        </div>
+                                        <div>
+                                            <label className="co-label">State *</label>
+                                            <input value={addrForm.state} onChange={e => setAddrForm(p => ({ ...p, state: e.target.value }))} className="co-input" />
+                                        </div>
                                     </div>
-                                    <div className="checkout-form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-                                        <div><label style={formLabel}>Postal Code *</label><input value={addrForm.postal_code} onChange={e => setAddrForm(p => ({ ...p, postal_code: e.target.value }))} style={formInput} /></div>
-                                        <div><label style={formLabel}>Country</label><input value={addrForm.country} onChange={e => setAddrForm(p => ({ ...p, country: e.target.value }))} style={formInput} /></div>
+                                    <div className="co-form-grid">
+                                        <div>
+                                            <label className="co-label">Postal Code *</label>
+                                            <input value={addrForm.postal_code} onChange={e => setAddrForm(p => ({ ...p, postal_code: e.target.value }))} className="co-input" />
+                                        </div>
+                                        <div>
+                                            <label className="co-label">Country</label>
+                                            <input value={addrForm.country} onChange={e => setAddrForm(p => ({ ...p, country: e.target.value }))} className="co-input" />
+                                        </div>
                                     </div>
-                                    <button onClick={handleAddrSave} disabled={addrSaving} style={{
-                                        padding: '10px 20px', background: '#1a1a1a', color: '#f5c518', border: 'none', borderRadius: 8,
-                                        fontSize: 13, fontWeight: 700, cursor: addrSaving ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-                                    }}>
-                                        {addrSaving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : editingAddrId ? <Save size={14} /> : <Check size={14} />}
+                                    {error && <div className="co-error">{error}</div>}
+                                    <button onClick={handleAddrSave} disabled={addrSaving} className="co-save-btn">
+                                        {addrSaving ? <Loader2 size={14} className="co-spinner" /> : editingAddrId ? <Save size={14} /> : <Check size={14} />}
                                         {editingAddrId ? 'Update Address' : 'Save & Use'}
                                     </button>
                                 </div>
@@ -395,30 +374,27 @@ export default function CheckoutPage() {
                         </div>
                     </motion.div>
 
-                    {/* Step 2: Items */}
-                    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}>
-                        <div className="checkout-card" style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', border: '1px solid #f0f0f0', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-                                <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#1a1a1a', color: '#f5c518', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800 }}>2</div>
-                                <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: 18, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Order Items ({items.length})</h2>
+                    {/* Step 2: Order Items */}
+                    <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}>
+                        <div className="co-card">
+                            <div className="co-step-header">
+                                <div className="co-step-num">2</div>
+                                <h2 className="co-step-title">Order Items ({items.length})</h2>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <div className="co-items">
                                 {items.map((item, i) => {
                                     const key = item.size ? `${item.id}-${item.size}` : item.id;
                                     return (
-                                        <div key={key} className="checkout-item-row" style={{ display: 'flex', gap: 14, padding: '12px 0', borderBottom: i < items.length - 1 ? '1px solid #f5f5f5' : 'none' }}>
-                                            <div style={{
-                                                width: 56, height: 56, borderRadius: 10, overflow: 'hidden', flexShrink: 0,
-                                                background: '#f5f5f0', border: '1px solid #f0f0f0',
-                                            }}>
-                                                <img src={item.image} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        <div key={key} className={`co-item${i < items.length - 1 ? ' co-item--border' : ''}`}>
+                                            <div className="co-item-img">
+                                                <img src={item.image} alt={item.name} />
                                             </div>
-                                            <div style={{ flex: 1, minWidth: 0 }}>
-                                                <div className="checkout-item-name" style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
-                                                {item.size && <span style={{ fontSize: 11, color: '#888', background: '#f5f5f0', padding: '1px 6px', borderRadius: 4 }}>Size: {item.size}</span>}
-                                                <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>Qty: {item.quantity}</div>
+                                            <div className="co-item-info">
+                                                <div className="co-item-name">{item.name}</div>
+                                                {item.size && <span className="co-item-size">Size: {item.size}</span>}
+                                                <div className="co-item-qty">Qty: {item.quantity}</div>
                                             </div>
-                                            <div className="checkout-item-price" style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                            <div className="co-item-price">
                                                 ৳{(item.price * item.quantity).toLocaleString()}
                                             </div>
                                         </div>
@@ -429,93 +405,74 @@ export default function CheckoutPage() {
                     </motion.div>
                 </div>
 
-                {/* Right Column: Summary */}
-                <motion.div className="checkout-summary" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.2 }}
-                    style={{ position: 'sticky', top: 24 }}>
-                    <div className="checkout-card" style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', border: '1px solid #f0f0f0', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
-                        <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: 18, fontWeight: 700, color: '#1a1a1a', marginBottom: 20 }}>Order Summary</h3>
+                {/* ── Right Column: Summary ── */}
+                <motion.div
+                    className="co-summary-wrap"
+                    initial={{ opacity: 0, y: 14 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: 0.2 }}
+                >
+                    <div className="co-card">
+                        <h3 className="co-summary-title">Order Summary</h3>
 
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
-                            <SummaryRow label="Subtotal" value={`৳${totalPrice.toLocaleString()}`} />
+                        <div className="co-summary-rows">
+                            <div className="co-summary-row">
+                                <span className="co-summary-label">Subtotal</span>
+                                <span className="co-summary-val">৳{totalPrice.toLocaleString()}</span>
+                            </div>
                             {promoCode && promoDiscount > 0 && (
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-                                    <span style={{ color: '#2e7d32', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                        <Tag size={13} /> Coupon ({promoCode})
+                                <div className="co-summary-row">
+                                    <span className="co-summary-label co-summary-label--green">
+                                        <Tag size={12} /> Coupon ({promoCode})
                                     </span>
-                                    <span style={{ fontWeight: 600, color: '#2e7d32' }}>-৳{promoDiscount.toLocaleString()}</span>
+                                    <span className="co-summary-val co-summary-val--green">-৳{promoDiscount.toLocaleString()}</span>
                                 </div>
                             )}
-                            <SummaryRow label="Shipping" value={shipping === 0 ? 'FREE' : `৳${shipping}`} accent={shipping === 0} />
+                            <div className="co-summary-row">
+                                <span className="co-summary-label">Shipping</span>
+                                <span className={`co-summary-val${shipping === 0 ? ' co-summary-val--green' : ''}`}>
+                                    {shipping === 0 ? 'FREE' : `৳${shipping}`}
+                                </span>
+                            </div>
                         </div>
 
-                        <div style={{ borderTop: '2px solid #1a1a1a', paddingTop: 14, marginBottom: 20 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: 16, fontWeight: 800, color: '#1a1a1a' }}>Total</span>
-                                <span style={{ fontSize: 22, fontWeight: 800, fontFamily: "'Outfit', sans-serif", color: '#1a1a1a' }}>৳{grandTotal.toLocaleString()}</span>
-                            </div>
+                        <div className="co-total-row">
+                            <span className="co-total-label">Total</span>
+                            <span className="co-total-val">৳{grandTotal.toLocaleString()}</span>
                         </div>
 
                         {shipping === 0 && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: 'rgba(34,197,94,0.06)', borderRadius: 8, marginBottom: 16, fontSize: 12, color: '#16a34a', fontWeight: 600 }}>
-                                <Truck size={14} /> Free shipping on orders ৳{freeShippingThreshold}+
+                            <div className="co-free-ship">
+                                <Truck size={13} /> Free shipping on orders ৳{freeShippingThreshold}+
                             </div>
                         )}
 
-                        {/* Payment Method Selection */}
-                        <div style={{ marginBottom: 16 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 10 }}>Payment Method</div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                <label style={{
-                                    display: 'flex', alignItems: 'center', gap: 12,
-                                    padding: '12px 14px', borderRadius: 10, cursor: 'pointer',
-                                    border: paymentMethod === 'online' ? '1.5px solid #f5c518' : '1px solid #f0f0f0',
-                                    background: paymentMethod === 'online' ? 'rgba(245,197,24,0.04)' : '#fafafa',
-                                    transition: 'all 0.2s',
-                                }}>
-                                    <input type="radio" name="paymentMethod" checked={paymentMethod === 'online'}
-                                        onChange={() => setPaymentMethod('online')}
-                                        style={{ accentColor: '#f5c518' }} />
-                                    <CreditCard size={18} color={paymentMethod === 'online' ? '#f5c518' : '#999'} />
-                                    <div>
-                                        <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>Online Payment</div>
-                                        <div style={{ fontSize: 11, color: '#999' }}>Pay via SSLCommerz (Cards, bKash, Nagad)</div>
-                                    </div>
-                                </label>
-                                <label style={{
-                                    display: 'flex', alignItems: 'center', gap: 12,
-                                    padding: '12px 14px', borderRadius: 10, cursor: 'pointer',
-                                    border: paymentMethod === 'cod' ? '1.5px solid #f5c518' : '1px solid #f0f0f0',
-                                    background: paymentMethod === 'cod' ? 'rgba(245,197,24,0.04)' : '#fafafa',
-                                    transition: 'all 0.2s',
-                                }}>
-                                    <input type="radio" name="paymentMethod" checked={paymentMethod === 'cod'}
-                                        onChange={() => setPaymentMethod('cod')}
-                                        style={{ accentColor: '#f5c518' }} />
-                                    <Wallet size={18} color={paymentMethod === 'cod' ? '#f5c518' : '#999'} />
-                                    <div>
-                                        <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>Cash on Delivery</div>
-                                        <div style={{ fontSize: 11, color: '#999' }}>Pay when you receive your order</div>
-                                    </div>
-                                </label>
-                            </div>
+                        {/* Payment Method */}
+                        <div className="co-pay-section">
+                            <div className="co-pay-title">Payment Method</div>
+                            <label className={`co-pay-option${paymentMethod === 'online' ? ' co-pay-option--on' : ''}`}>
+                                <input type="radio" name="paymentMethod" checked={paymentMethod === 'online'} onChange={() => setPaymentMethod('online')} />
+                                <CreditCard size={17} color={paymentMethod === 'online' ? '#f5c518' : '#999'} />
+                                <div>
+                                    <div className="co-pay-name">Online Payment</div>
+                                    <div className="co-pay-desc">Cards, bKash, Nagad via SSLCommerz</div>
+                                </div>
+                            </label>
+                            <label className={`co-pay-option${paymentMethod === 'cod' ? ' co-pay-option--on' : ''}`}>
+                                <input type="radio" name="paymentMethod" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} />
+                                <Wallet size={17} color={paymentMethod === 'cod' ? '#f5c518' : '#999'} />
+                                <div>
+                                    <div className="co-pay-name">Cash on Delivery</div>
+                                    <div className="co-pay-desc">Pay when you receive your order</div>
+                                </div>
+                            </label>
                         </div>
 
-                        {error && (
-                            <div style={{ padding: '10px 12px', borderRadius: 8, marginBottom: 12, fontSize: 12, fontWeight: 600, background: 'rgba(239,68,68,0.06)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.15)' }}>
-                                {error}
-                            </div>
-                        )}
+                        {error && <div className="co-error">{error}</div>}
 
                         {!selectedAddr && (
-                            <div style={{
-                                display: 'flex', alignItems: 'center', gap: 8,
-                                padding: '10px 14px', borderRadius: 10, marginBottom: 12,
-                                fontSize: 12, fontWeight: 600,
-                                background: 'rgba(245,197,24,0.08)',
-                                color: '#b8960a',
-                                border: '1px solid rgba(245,197,24,0.2)',
-                            }}>
-                                <MapPin size={14} style={{ flexShrink: 0 }} />
+                            <div className="co-addr-warn">
+                                <MapPin size={13} style={{ flexShrink: 0 }} />
                                 Please select a delivery address to continue
                             </div>
                         )}
@@ -523,196 +480,393 @@ export default function CheckoutPage() {
                         <button
                             onClick={handlePay}
                             disabled={paying || !selectedAddr}
-                            style={{
-                                width: '100%', padding: '14px 0', background: !selectedAddr ? '#e0e0e0' : 'linear-gradient(135deg, #f5c518, #e6b800)',
-                                border: 'none', borderRadius: 12, cursor: paying ? 'wait' : !selectedAddr ? 'not-allowed' : 'pointer',
-                                fontSize: 15, fontWeight: 700, color: !selectedAddr ? '#999' : '#1a1a1a',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                                fontFamily: "'Inter', sans-serif", transition: 'all 0.2s',
-                                boxShadow: selectedAddr ? '0 4px 16px rgba(245,197,24,0.3)' : 'none',
-                            }}
+                            className={`co-pay-btn${!selectedAddr ? ' co-pay-btn--disabled' : ''}`}
                         >
                             {paying ? (
-                                <><Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> Processing...</>
+                                <><Loader2 size={17} className="co-spinner" /> Processing...</>
                             ) : paymentMethod === 'cod' ? (
-                                <><Wallet size={18} /> Place Order (Cash on Delivery)</>
+                                <><Wallet size={17} /> Place Order (COD)</>
                             ) : (
-                                <><CreditCard size={18} /> Pay ৳{grandTotal.toLocaleString()}</>
+                                <><CreditCard size={17} /> Pay ৳{grandTotal.toLocaleString()}</>
                             )}
                         </button>
 
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14, fontSize: 11, color: '#bbb', fontWeight: 500 }}>
-                            <Lock size={12} /> Secured by SSLCommerz
+                        <div className="co-secure">
+                            <Lock size={11} /> Secured by SSLCommerz
                         </div>
 
-                        {/* Trust badges */}
-                        <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 16, padding: '14px 0', borderTop: '1px solid #f5f5f5' }}>
-                            <div style={{ textAlign: 'center' }}>
-                                <Shield size={18} color="#22c55e" style={{ marginBottom: 4 }} />
-                                <div style={{ fontSize: 10, color: '#999', fontWeight: 600 }}>Secure Payment</div>
+                        <div className="co-trust">
+                            <div className="co-trust-item">
+                                <Shield size={17} color="#22c55e" />
+                                <span>Secure</span>
                             </div>
-                            <div style={{ textAlign: 'center' }}>
-                                <Package size={18} color="#3b82f6" style={{ marginBottom: 4 }} />
-                                <div style={{ fontSize: 10, color: '#999', fontWeight: 600 }}>Easy Returns</div>
+                            <div className="co-trust-item">
+                                <Package size={17} color="#3b82f6" />
+                                <span>Returns</span>
                             </div>
-                            <div style={{ textAlign: 'center' }}>
-                                <Truck size={18} color="#f5c518" style={{ marginBottom: 4 }} />
-                                <div style={{ fontSize: 10, color: '#999', fontWeight: 600 }}>Fast Delivery</div>
+                            <div className="co-trust-item">
+                                <Truck size={17} color="#f5c518" />
+                                <span>Fast Delivery</span>
                             </div>
                         </div>
                     </div>
                 </motion.div>
             </div>
-            {/* Delete Address Confirmation */}
+
+            {/* Delete Confirm Modal */}
             {deleteConfirmId && (
-                <div style={{
-                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
-                }} onClick={() => setDeleteConfirmId(null)}>
-                    <div style={{
-                        background: '#fff', borderRadius: 16, padding: 28, maxWidth: 380, width: '100%', textAlign: 'center',
-                    }} onClick={e => e.stopPropagation()}>
-                        <Trash2 size={32} style={{ color: '#ef4444', marginBottom: 12 }} />
-                        <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, fontFamily: "'Outfit', sans-serif" }}>Delete Address?</h3>
-                        <p style={{ color: '#888', fontSize: 13, marginBottom: 20 }}>This action cannot be undone.</p>
-                        <div style={{ display: 'flex', gap: 12 }}>
-                            <button onClick={() => setDeleteConfirmId(null)} style={{
-                                flex: 1, padding: '10px 0', background: '#f5f5f5', color: '#666',
-                                border: '1px solid #e8e8e8', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                                cursor: 'pointer', fontFamily: "'Inter', sans-serif",
-                            }}>Cancel</button>
-                            <button onClick={handleAddrDelete} style={{
-                                flex: 1, padding: '10px 0', background: '#ef4444', color: '#fff',
-                                border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                                cursor: 'pointer', fontFamily: "'Inter', sans-serif",
-                            }}>Delete</button>
+                <div className="co-modal-bg" onClick={() => setDeleteConfirmId(null)}>
+                    <div className="co-modal" onClick={e => e.stopPropagation()}>
+                        <Trash2 size={30} color="#ef4444" />
+                        <h3>Delete Address?</h3>
+                        <p>This action cannot be undone.</p>
+                        <div className="co-modal-btns">
+                            <button onClick={() => setDeleteConfirmId(null)} className="co-modal-cancel">Cancel</button>
+                            <button onClick={handleAddrDelete} className="co-modal-delete">Delete</button>
                         </div>
                     </div>
                 </div>
             )}
 
             <style>{`
-                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-                /* Base: ensure checkout wrapper never overflows */
-                .checkout-page-root {
+                /* ────── Base ────── */
+                .co-root {
+                    min-height: 100vh;
+                    background: #f4f4f0;
+                    font-family: 'Inter', sans-serif;
                     overflow-x: hidden;
                     width: 100%;
-                    max-width: 100vw;
+                }
+                @keyframes spin { to { transform: rotate(360deg); } }
+                .co-spinner { animation: spin 0.9s linear infinite; }
+                .co-loading {
+                    min-height: 60vh; display: flex;
+                    align-items: center; justify-content: center; background: #f4f4f0;
                 }
 
-                /* Desktop grid */
-                .checkout-grid {
+                /* ────── Header ────── */
+                .co-header {
+                    background: linear-gradient(135deg,#1a1a1a 0%,#2e2e2e 100%);
+                    padding: 24px 0;
+                }
+                .co-header-inner {
+                    max-width: 1140px;
+                    margin: 0 auto;
+                    padding: 0 24px;
+                }
+                .co-back-link {
+                    display: inline-flex; align-items: center; gap: 6px;
+                    color: #888; font-size: 12px; text-decoration: none;
+                    margin-bottom: 10px;
+                }
+                .co-back-link:hover { color: #ccc; }
+                .co-title {
+                    font-family: 'Outfit', sans-serif;
+                    font-size: 26px; font-weight: 800; color: #fff; margin: 0;
+                }
+                .co-subtitle { font-size: 12px; color: rgba(255,255,255,0.45); margin-top: 3px; }
+
+                /* ────── Layout ────── */
+                .co-layout {
+                    max-width: 1140px;
+                    margin: 0 auto;
+                    padding: 28px 24px 80px;
+                    display: grid;
+                    grid-template-columns: 1fr 360px;
+                    gap: 24px;
+                    align-items: start;
                     box-sizing: border-box;
                 }
+                .co-left { display: flex; flex-direction: column; gap: 18px; }
+                .co-summary-wrap { position: sticky; top: 20px; }
 
-                /* ---- Tablet (≤1100px) ---- */
-                @media (max-width: 1100px) {
-                    .checkout-grid {
-                        grid-template-columns: 1fr 340px !important;
-                        padding: 24px 24px 80px !important;
-                        gap: 20px !important;
+                /* ────── Card ────── */
+                .co-card {
+                    background: #fff;
+                    border-radius: 16px;
+                    padding: 22px 24px;
+                    border: 1px solid #ebebeb;
+                    box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+                    box-sizing: border-box;
+                    width: 100%;
+                }
+
+                /* ────── Step header ────── */
+                .co-step-header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+                .co-step-num {
+                    width: 30px; height: 30px; border-radius: 50%;
+                    background: #1a1a1a; color: #f5c518;
+                    display: flex; align-items: center; justify-content: center;
+                    font-size: 13px; font-weight: 800; flex-shrink: 0;
+                }
+                .co-step-title {
+                    font-family: 'Outfit', sans-serif;
+                    font-size: 17px; font-weight: 700; color: #1a1a1a; margin: 0;
+                }
+
+                /* ────── Address ────── */
+                .co-center-pad { display: flex; justify-content: center; padding: 28px 0; }
+                .co-empty-addr {
+                    text-align: center; padding: 28px 0;
+                    display: flex; flex-direction: column; align-items: center; gap: 10px;
+                }
+                .co-empty-addr p { color: #888; font-size: 14px; font-weight: 600; margin: 0; }
+                .co-addr-list { display: flex; flex-direction: column; gap: 10px; }
+                .co-addr-card {
+                    display: flex; align-items: flex-start; gap: 12px;
+                    padding: 12px 14px; border-radius: 12px; cursor: pointer;
+                    border: 1px solid #ebebeb; background: #fafafa;
+                    transition: border-color 0.2s, background 0.2s;
+                }
+                .co-addr-card--selected {
+                    border: 1.5px solid #f5c518;
+                    background: rgba(245,197,24,0.03);
+                }
+                .co-radio {
+                    width: 17px; height: 17px; border-radius: 50%; flex-shrink: 0; margin-top: 3px;
+                    border: 2px solid #ccc; background: #fff; transition: border 0.2s;
+                }
+                .co-radio--on { border: 5px solid #f5c518; }
+                .co-addr-body { flex: 1; min-width: 0; }
+                .co-addr-top { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; flex-wrap: wrap; }
+                .co-addr-label { font-size: 13px; font-weight: 700; color: #1a1a1a; }
+                .co-default-badge {
+                    font-size: 9px; font-weight: 700; color: #f5c518;
+                    background: rgba(245,197,24,0.12); padding: 1px 6px; border-radius: 10px;
+                }
+                .co-addr-name { font-size: 13px; font-weight: 600; color: #333; }
+                .co-addr-text { font-size: 11px; color: #888; line-height: 1.5; margin-top: 2px; }
+                .co-addr-phone { font-size: 11px; color: #aaa; margin-top: 2px; }
+                .co-addr-actions { display: flex; gap: 4px; flex-shrink: 0; margin-top: 2px; }
+                .co-icon-btn {
+                    background: #fff; border: 1px solid #ebebeb; border-radius: 6px;
+                    padding: 6px; cursor: pointer; display: flex; align-items: center;
+                    transition: border-color 0.2s;
+                }
+                .co-icon-btn:hover { border-color: #ddd; }
+                .co-accent-btn {
+                    display: inline-flex; align-items: center; gap: 6px;
+                    padding: 9px 18px; background: #1a1a1a; color: #f5c518;
+                    border: none; border-radius: 8px; font-size: 12px; font-weight: 700;
+                    cursor: pointer; font-family: 'Inter', sans-serif;
+                }
+                .co-add-btn { margin-top: 12px; }
+
+                /* ────── Address Form ────── */
+                .co-form-wrap {
+                    margin-top: 16px; padding: 18px 16px;
+                    background: #fafafa; border-radius: 12px; border: 1px solid #ebebeb;
+                }
+                .co-form-header {
+                    display: flex; justify-content: space-between; align-items: center;
+                    margin-bottom: 14px;
+                }
+                .co-form-header h3 { font-size: 14px; font-weight: 700; margin: 0; color: #1a1a1a; }
+                .co-close-btn { background: none; border: none; cursor: pointer; padding: 2px; }
+                .co-form-grid {
+                    display: grid; grid-template-columns: 1fr 1fr;
+                    gap: 10px; margin-bottom: 10px;
+                }
+                .co-form-field { margin-bottom: 10px; }
+                .co-label {
+                    display: block; font-size: 10px; font-weight: 600; color: #999;
+                    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;
+                }
+                .co-input {
+                    width: 100%; padding: 9px 11px;
+                    background: #fff; border: 1px solid #e0e0e0; border-radius: 7px;
+                    font-size: 13px; font-family: 'Inter', sans-serif; outline: none;
+                    color: #1a1a1a; box-sizing: border-box;
+                }
+                .co-input:focus { border-color: #f5c518; }
+                .co-save-btn {
+                    display: flex; align-items: center; gap: 6px;
+                    padding: 10px 18px; background: #1a1a1a; color: #f5c518;
+                    border: none; border-radius: 8px; font-size: 13px; font-weight: 700;
+                    cursor: pointer; font-family: 'Inter', sans-serif; margin-top: 4px;
+                }
+                .co-error {
+                    background: rgba(239,68,68,0.07); color: #ef4444;
+                    border: 1px solid rgba(239,68,68,0.15); border-radius: 8px;
+                    padding: 9px 12px; font-size: 12px; font-weight: 600;
+                    margin-bottom: 12px;
+                }
+
+                /* ────── Order Items ────── */
+                .co-items { display: flex; flex-direction: column; }
+                .co-item {
+                    display: flex; align-items: center; gap: 12px;
+                    padding: 11px 0;
+                }
+                .co-item--border { border-bottom: 1px solid #f0f0f0; }
+                .co-item-img {
+                    width: 54px; height: 54px; border-radius: 10px;
+                    overflow: hidden; flex-shrink: 0;
+                    background: #f5f5f0; border: 1px solid #ebebeb;
+                }
+                .co-item-img img { width: 100%; height: 100%; object-fit: cover; }
+                .co-item-info { flex: 1; min-width: 0; }
+                .co-item-name {
+                    font-size: 13px; font-weight: 600; color: #1a1a1a;
+                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+                    margin-bottom: 3px;
+                }
+                .co-item-size {
+                    font-size: 10px; color: #888; background: #f0f0eb;
+                    padding: 1px 6px; border-radius: 4px; display: inline-block;
+                }
+                .co-item-qty { font-size: 11px; color: #aaa; margin-top: 3px; }
+                .co-item-price {
+                    font-size: 14px; font-weight: 700; color: #1a1a1a;
+                    white-space: nowrap; flex-shrink: 0;
+                }
+
+                /* ────── Summary ────── */
+                .co-summary-title {
+                    font-family: 'Outfit', sans-serif;
+                    font-size: 17px; font-weight: 700; color: #1a1a1a; margin: 0 0 18px;
+                }
+                .co-summary-rows { display: flex; flex-direction: column; gap: 11px; margin-bottom: 14px; }
+                .co-summary-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+                .co-summary-label { color: #888; font-weight: 500; display: flex; align-items: center; gap: 4px; }
+                .co-summary-label--green { color: #16a34a; }
+                .co-summary-val { font-weight: 600; color: #1a1a1a; }
+                .co-summary-val--green { color: #16a34a; }
+                .co-total-row {
+                    border-top: 2px solid #1a1a1a; padding-top: 13px; margin-bottom: 16px;
+                    display: flex; justify-content: space-between; align-items: center;
+                }
+                .co-total-label { font-size: 15px; font-weight: 800; color: #1a1a1a; }
+                .co-total-val {
+                    font-size: 22px; font-weight: 800; color: #1a1a1a;
+                    font-family: 'Outfit', sans-serif;
+                }
+                .co-free-ship {
+                    display: flex; align-items: center; gap: 7px;
+                    padding: 9px 11px; background: rgba(34,197,94,0.07);
+                    border-radius: 8px; margin-bottom: 14px;
+                    font-size: 12px; color: #16a34a; font-weight: 600;
+                }
+
+                /* Payment Method */
+                .co-pay-section { margin-bottom: 14px; }
+                .co-pay-title { font-size: 12px; font-weight: 700; color: #1a1a1a; margin-bottom: 9px; text-transform: uppercase; letter-spacing: 0.4px; }
+                .co-pay-option {
+                    display: flex; align-items: center; gap: 10px;
+                    padding: 11px 12px; border-radius: 10px; cursor: pointer;
+                    border: 1px solid #ebebeb; background: #fafafa;
+                    transition: all 0.18s; margin-bottom: 8px;
+                }
+                .co-pay-option input[type=radio] { accent-color: #f5c518; flex-shrink: 0; }
+                .co-pay-option--on { border: 1.5px solid #f5c518; background: rgba(245,197,24,0.04); }
+                .co-pay-name { font-size: 13px; font-weight: 600; color: #1a1a1a; }
+                .co-pay-desc { font-size: 10px; color: #aaa; margin-top: 1px; }
+
+                /* Addr warning */
+                .co-addr-warn {
+                    display: flex; align-items: center; gap: 7px;
+                    padding: 9px 12px; border-radius: 9px; margin-bottom: 12px;
+                    font-size: 12px; font-weight: 600; color: #b8960a;
+                    background: rgba(245,197,24,0.09); border: 1px solid rgba(245,197,24,0.22);
+                }
+
+                /* Pay button */
+                .co-pay-btn {
+                    width: 100%; padding: 14px; border: none; border-radius: 12px;
+                    font-size: 15px; font-weight: 700; cursor: pointer;
+                    display: flex; align-items: center; justify-content: center; gap: 9px;
+                    font-family: 'Inter', sans-serif; transition: all 0.18s;
+                    background: linear-gradient(135deg, #f5c518, #e6b800);
+                    color: #1a1a1a;
+                    box-shadow: 0 4px 18px rgba(245,197,24,0.3);
+                }
+                .co-pay-btn--disabled {
+                    background: #e0e0e0 !important; color: #aaa !important;
+                    box-shadow: none !important; cursor: not-allowed !important;
+                }
+                .co-pay-btn:not(.co-pay-btn--disabled):hover {
+                    transform: translateY(-1px);
+                    box-shadow: 0 6px 24px rgba(245,197,24,0.4);
+                }
+
+                .co-secure {
+                    display: flex; align-items: center; justify-content: center; gap: 5px;
+                    margin-top: 12px; font-size: 10px; color: #bbb; font-weight: 500;
+                }
+                .co-trust {
+                    display: flex; justify-content: center; gap: 24px;
+                    margin-top: 14px; padding-top: 14px; border-top: 1px solid #f0f0f0;
+                }
+                .co-trust-item {
+                    display: flex; flex-direction: column; align-items: center; gap: 4px;
+                }
+                .co-trust-item span { font-size: 9px; color: #aaa; font-weight: 600; }
+
+                /* ────── Modal ────── */
+                .co-modal-bg {
+                    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+                    display: flex; align-items: center; justify-content: center;
+                    z-index: 200; padding: 20px;
+                }
+                .co-modal {
+                    background: #fff; border-radius: 16px; padding: 28px 24px;
+                    max-width: 360px; width: 100%; text-align: center;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+                    display: flex; flex-direction: column; align-items: center; gap: 8px;
+                }
+                .co-modal h3 { font-size: 17px; font-weight: 700; color: #1a1a1a; margin: 4px 0 0; }
+                .co-modal p { color: #888; font-size: 13px; margin: 0 0 12px; }
+                .co-modal-btns { display: flex; gap: 10px; width: 100%; }
+                .co-modal-cancel {
+                    flex: 1; padding: 10px; background: #f5f5f5; color: #555;
+                    border: 1px solid #e0e0e0; border-radius: 8px;
+                    font-size: 13px; font-weight: 600; cursor: pointer;
+                }
+                .co-modal-delete {
+                    flex: 1; padding: 10px; background: #ef4444; color: #fff;
+                    border: none; border-radius: 8px;
+                    font-size: 13px; font-weight: 600; cursor: pointer;
+                }
+
+                /* ────── Tablet (≤1024px) ────── */
+                @media (max-width: 1024px) {
+                    .co-layout {
+                        grid-template-columns: 1fr 320px;
+                        padding: 20px 20px 80px;
+                        gap: 18px;
                     }
                 }
 
-                /* ---- Mobile (≤768px) ---- */
+                /* ────── Mobile (≤768px) ────── */
                 @media (max-width: 768px) {
-                    .checkout-header-outer {
-                        padding: 20px 0 !important;
+                    .co-header { padding: 18px 0; }
+                    .co-header-inner { padding: 0 16px; }
+                    .co-title { font-size: 22px; }
+                    .co-layout {
+                        grid-template-columns: 1fr;
+                        padding: 16px 16px 72px;
+                        gap: 14px;
                     }
-                    .checkout-header-inner {
-                        padding: 0 16px !important;
-                        max-width: 100% !important;
-                        box-sizing: border-box !important;
-                    }
-                    .checkout-header-inner h1 {
-                        font-size: 22px !important;
-                    }
-                    .checkout-header-inner p {
-                        font-size: 12px !important;
-                    }
-                    .checkout-grid {
-                        grid-template-columns: 1fr !important;
-                        padding: 16px 16px 60px !important;
-                        gap: 16px !important;
-                        max-width: 100% !important;
-                        width: 100% !important;
-                        box-sizing: border-box !important;
-                        margin: 0 !important;
-                    }
-                    .checkout-card {
-                        padding: 18px 14px !important;
-                        border-radius: 12px !important;
-                        width: 100% !important;
-                        box-sizing: border-box !important;
-                        overflow: hidden !important;
-                    }
-                    .checkout-summary {
-                        position: static !important;
-                    }
-                    .checkout-form-row {
-                        grid-template-columns: 1fr !important;
-                        gap: 10px !important;
-                    }
-                    .checkout-item-row {
-                        gap: 10px !important;
-                    }
-                    .checkout-item-name {
-                        font-size: 13px !important;
-                    }
-                    .checkout-item-price {
-                        font-size: 13px !important;
-                        min-width: 0 !important;
-                    }
+                    .co-summary-wrap { position: static; }
+                    .co-card { padding: 18px 16px; border-radius: 14px; }
+                    .co-form-grid { grid-template-columns: 1fr; }
+                    .co-total-val { font-size: 20px; }
+                    .co-trust { gap: 16px; }
                 }
 
-                /* ---- Small Mobile (≤480px) ---- */
+                /* ────── Small Mobile (≤480px) ────── */
                 @media (max-width: 480px) {
-                    .checkout-grid {
-                        padding: 12px 12px 60px !important;
-                    }
-                    .checkout-card {
-                        padding: 16px 12px !important;
-                        border-radius: 10px !important;
-                    }
-                    .checkout-header-inner h1 {
-                        font-size: 20px !important;
-                    }
+                    .co-header-inner { padding: 0 14px; }
+                    .co-title { font-size: 20px; }
+                    .co-layout { padding: 12px 12px 72px; gap: 12px; }
+                    .co-card { padding: 16px 14px; border-radius: 12px; }
+                    .co-item-img { width: 48px; height: 48px; border-radius: 8px; }
+                    .co-item-name { font-size: 12px; }
+                    .co-item-price { font-size: 13px; }
+                    .co-pay-btn { padding: 13px; font-size: 14px; }
+                    .co-total-val { font-size: 19px; }
                 }
             `}</style>
         </div>
     );
 }
-
-function SummaryRow({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
-    return (
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
-            <span style={{ color: '#888', fontWeight: 500 }}>{label}</span>
-            <span style={{ fontWeight: 600, color: accent ? '#16a34a' : '#1a1a1a' }}>{value}</span>
-        </div>
-    );
-}
-
-const accentBtn: React.CSSProperties = {
-    display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px',
-    background: '#1a1a1a', color: '#f5c518', border: 'none', borderRadius: 8,
-    fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: "'Inter', sans-serif",
-};
-
-const formLabel: React.CSSProperties = {
-    display: 'block', fontSize: 11, fontWeight: 600, color: '#888',
-    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4,
-};
-
-const formInput: React.CSSProperties = {
-    width: '100%', padding: '8px 12px', background: '#fff',
-    border: '1px solid #e8e8e8', borderRadius: 6, fontSize: 13,
-    fontFamily: "'Inter', sans-serif", outline: 'none', color: '#1a1a1a',
-};
-
-const addrActionBtn: React.CSSProperties = {
-    background: '#fff', border: '1px solid #f0f0f0', borderRadius: 6,
-    padding: 6, cursor: 'pointer', display: 'flex',
-    alignItems: 'center', justifyContent: 'center',
-    transition: 'border-color 0.2s',
-};
