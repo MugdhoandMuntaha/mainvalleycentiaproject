@@ -268,7 +268,7 @@ export default function CheckoutPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                     {/* Step 1: Address */}
                     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-                        <div style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', border: '1px solid #f0f0f0', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
+                        <div className="checkout-card" style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', border: '1px solid #f0f0f0', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
                                 <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#1a1a1a', color: '#f5c518', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800 }}>1</div>
                                 <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: 18, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Delivery Address</h2>
@@ -397,7 +397,7 @@ export default function CheckoutPage() {
 
                     {/* Step 2: Items */}
                     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }}>
-                        <div style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', border: '1px solid #f0f0f0', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
+                        <div className="checkout-card" style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', border: '1px solid #f0f0f0', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
                                 <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#1a1a1a', color: '#f5c518', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800 }}>2</div>
                                 <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: 18, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Order Items ({items.length})</h2>
@@ -430,9 +430,9 @@ export default function CheckoutPage() {
                 </div>
 
                 {/* Right Column: Summary */}
-                <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.2 }}
+                <motion.div className="checkout-summary" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.2 }}
                     style={{ position: 'sticky', top: 24 }}>
-                    <div style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', border: '1px solid #f0f0f0', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
+                    <div className="checkout-card" style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', border: '1px solid #f0f0f0', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
                         <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: 18, fontWeight: 700, color: '#1a1a1a', marginBottom: 20 }}>Order Summary</h3>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
@@ -591,7 +591,32 @@ export default function CheckoutPage() {
                 </div>
             )}
 
-            <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+            <style>{`
+                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                @media (max-width: 768px) {
+                    .checkout-grid {
+                        grid-template-columns: 1fr !important;
+                        padding: 16px 16px 60px !important;
+                        gap: 20px !important;
+                    }
+                    .checkout-header-inner {
+                        padding: 0 16px !important;
+                    }
+                    .checkout-header-inner h1 {
+                        font-size: 22px !important;
+                    }
+                    .checkout-card {
+                        padding: 20px 16px !important;
+                    }
+                    .checkout-summary {
+                        position: static !important;
+                    }
+                    .checkout-form-row {
+                        grid-template-columns: 1fr !important;
+                        gap: 12px !important;
+                    }
+                }
+            `}</style>
         </div>
     );
 }
