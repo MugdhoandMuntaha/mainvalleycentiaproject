@@ -150,8 +150,15 @@ export default function AdminSectionsPage() {
         setSaving(true);
         try {
             const results = await Promise.all(sections.map(sec => updateSection(sec.id, {
-                ...sec,
+                section_type: sec.section_type,
+                title: sec.title,
+                subtitle: sec.subtitle || '',
+                badge_text: sec.badge_text || '',
+                cta_text: sec.cta_text || '',
+                cta_link: sec.cta_link || '',
+                background_color: sec.background_color || '',
                 is_active: active,
+                sort_order: sec.sort_order,
             })));
             
             const errors = results.filter(r => r.error);

@@ -86,7 +86,7 @@ export default function AdminSettingsPage() {
         setLoading(false);
     };
 
-    const handleFieldChange = (settingKey: string, fieldKey: string, value: string | number) => {
+    const handleFieldChange = (settingKey: string, fieldKey: string, value: string | number | boolean) => {
         setEditValues(prev => ({
             ...prev,
             [settingKey]: {
