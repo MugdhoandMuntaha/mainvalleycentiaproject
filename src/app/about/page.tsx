@@ -360,6 +360,21 @@ export default function AboutPage() {
                         alignItems: 'center',
                         minWidth: 0,
                     }}>
+                        <h3 style={{
+                            fontFamily: "'Outfit', sans-serif",
+                            fontSize: '17px',
+                            fontWeight: 700,
+                            color: '#1a1a1a',
+                            marginBottom: '20px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            wordBreak: 'break-word',
+                            overflowWrap: 'break-word',
+                        }}>
+                            <ShieldCheck size={16} color="#c9a96e" /> Verified By
+                        </h3>
+
                         {weAccept.verificationImage ? (
                             <div style={{ display: 'flex', justifyContent: 'center', padding: '0 16px', maxWidth: '100%' }}>
                                 <img 
