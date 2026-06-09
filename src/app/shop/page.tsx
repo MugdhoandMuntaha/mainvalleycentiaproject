@@ -6,8 +6,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ShoppingBag, Star, ArrowLeft, Filter } from 'lucide-react';
 import { useCart } from '@/lib/CartContext';
-import { getProductCards } from '@/lib/supabase/queries';
-import type { ProductCard } from '@/lib/supabase/queries';
+import { getProductCards } from '@/lib/db/queries';
+import type { ProductCard } from '@/lib/db/queries';
 import type { SectionProduct } from '@/data/homeSections';
 
 /* ─── Extended product with filterable tags ─── */
@@ -26,7 +26,7 @@ function supabaseToTagged(p: ProductCard): TaggedProduct {
     const formatReviewCount = (count: number) => count >= 1000 ? `${(count / 1000).toFixed(1)}K` : String(count);
 
     return {
-        id: typeof p.id === 'string' ? parseInt(p.id.replace(/-/g, '').slice(0, 8), 16) : 0,
+        id: p.id,
         slug: p.slug,
         image: p.primary_image_url || '/no-image.svg',
         title: p.name,
@@ -41,6 +41,7 @@ function supabaseToTagged(p: ProductCard): TaggedProduct {
         brand: p.brand_slug || 'bare-anatomy',
         productType: p.category_slug || 'other',
         concerns: p.concerns || [],
+        inStock: p.in_stock !== undefined ? p.in_stock : true,
     };
 }
 
@@ -519,7 +520,68 @@ function ShopContent() {
                     padding: '20px 48px 64px',
                 }}
             >
-                {products.length === 0 ? (
+                {isLoading ? (
+                    <div
+                        className="products-grid"
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(4, 1fr)',
+                            gap: '20px',
+                        }}
+                    >
+                        {Array.from({ length: 8 }).map((_, i) => (
+                            <div
+                                key={i}
+                                style={{
+                                    height: '532px',
+                                    background: '#ffffff',
+                                    borderRadius: '12px',
+                                    border: '1px solid #f0f0f0',
+                                    padding: '14px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '12px',
+                                    cursor: 'default',
+                                }}
+                            >
+                                {/* Image Area Skeleton */}
+                                <div
+                                    className="shimmer"
+                                    style={{
+                                        width: '100%',
+                                        height: '50%',
+                                        borderRadius: '8px',
+                                        background: '#f5f5f0',
+                                    }}
+                                />
+                                {/* Rating Row Skeleton */}
+                                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                                    <div className="shimmer" style={{ width: '40px', height: '18px', borderRadius: '4px' }} />
+                                    <div className="shimmer" style={{ width: '80px', height: '18px', borderRadius: '4px' }} />
+                                </div>
+                                {/* Title Skeleton */}
+                                <div className="shimmer" style={{ width: '90%', height: '20px', borderRadius: '4px' }} />
+                                <div className="shimmer" style={{ width: '65%', height: '20px', borderRadius: '4px' }} />
+
+                                <div style={{ flex: 1 }} />
+
+                                {/* Price Skeleton */}
+                                <div className="shimmer" style={{ width: '80px', height: '24px', borderRadius: '4px' }} />
+
+                                {/* Button Skeleton */}
+                                <div
+                                    className="shimmer"
+                                    style={{
+                                        width: '100%',
+                                        height: '40px',
+                                        borderRadius: '8px',
+                                        marginTop: '8px',
+                                    }}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                ) : products.length === 0 ? (
                     <div
                         style={{
                             textAlign: 'center',
@@ -836,9 +898,11 @@ function ShopContent() {
 
                                         {/* Add to Cart */}
                                         <button
+                                            disabled={product.inStock === false}
                                             onClick={(e) => {
                                                 e.preventDefault();
                                                 e.stopPropagation();
+                                                if (product.inStock === false) return;
                                                 addToCart({
                                                     id: String(product.id),
                                                     slug: product.slug,
@@ -854,8 +918,8 @@ function ShopContent() {
                                                 alignItems: 'center',
                                                 justifyContent: 'center',
                                                 gap: '8px',
-                                                background: '#f5c518',
-                                                color: '#1a1a1a',
+                                                background: product.inStock === false ? '#e0e0e0' : '#f5c518',
+                                                color: product.inStock === false ? '#888' : '#1a1a1a',
                                                 border: 'none',
                                                 borderRadius: '8px',
                                                 padding: '11px 0',
@@ -863,23 +927,31 @@ function ShopContent() {
                                                 fontSize: '13px',
                                                 fontWeight: 700,
                                                 letterSpacing: '0.5px',
-                                                cursor: 'pointer',
+                                                cursor: product.inStock === false ? 'not-allowed' : 'pointer',
                                                 transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                                                 textTransform: 'uppercase',
                                             }}
                                             onMouseEnter={(e) => {
+                                                if (product.inStock === false) return;
                                                 e.currentTarget.style.background = '#e6b800';
                                                 e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
                                                 e.currentTarget.style.boxShadow = '0 4px 14px rgba(245, 197, 24, 0.4)';
                                             }}
                                             onMouseLeave={(e) => {
+                                                if (product.inStock === false) return;
                                                 e.currentTarget.style.background = '#f5c518';
                                                 e.currentTarget.style.transform = 'translateY(0) scale(1)';
                                                 e.currentTarget.style.boxShadow = 'none';
                                             }}
                                         >
-                                            <ShoppingBag size={15} />
-                                            ADD TO CART
+                                            {product.inStock === false ? (
+                                                'OUT OF STOCK'
+                                            ) : (
+                                                <>
+                                                    <ShoppingBag size={15} />
+                                                    ADD TO CART
+                                                </>
+                                            )}
                                         </button>
                                     </div>
                                 </div>

@@ -1,5 +1,5 @@
-import LoadingSpinner from '@/components/LoadingSpinner';
+import { ProductDetailSkeleton } from '@/components/Skeletons';
 
 export default function ProductLoading() {
-    return <LoadingSpinner message="Loading product details..." />;
+    return <ProductDetailSkeleton />;
 }

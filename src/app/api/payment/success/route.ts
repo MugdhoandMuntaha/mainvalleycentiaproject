@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-function getSupabase() {
-    return createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-}
+import connectToDatabase from '@/lib/mongodb';
+import Order from '@/lib/models/Order';
+import { updateStockForOrder } from '@/lib/db/queries';
 
 export async function POST(req: NextRequest) {
     try {
@@ -19,27 +14,29 @@ export async function POST(req: NextRequest) {
             return NextResponse.redirect(new URL('/checkout/fail', req.url));
         }
 
-        const supabase = getSupabase();
+        await connectToDatabase();
 
         if (status === 'VALID' || status === 'VALIDATED') {
-            await supabase
-                .from('orders')
-                .update({
+            let order = await Order.findOneAndUpdate(
+                { transactionId: tran_id, status: 'pending' },
+                {
                     status: 'confirmed',
-                    payment_status: 'captured',
-                    ssl_val_id: val_id || null,
-                    updated_at: new Date().toISOString(),
-                })
-                .eq('transaction_id', tran_id);
+                    paymentStatus: 'captured',
+                    sslValId: val_id || null,
+                    $push: { statusHistory: { status: 'confirmed', note: 'Payment validated by SSLCommerz' } }
+                },
+                { new: true }
+            );
 
-            // Get order number for the success page
-            const { data: order } = await supabase
-                .from('orders')
-                .select('order_number')
-                .eq('transaction_id', tran_id)
-                .single();
+            if (order) {
+                // Order is confirmed for the first time -> update stock
+                await updateStockForOrder(order.orderItems);
+            } else {
+                // Already confirmed (e.g. via IPN/success overlap) -> fetch it
+                order = await Order.findOne({ transactionId: tran_id });
+            }
 
-            const orderNumber = order?.order_number || '';
+            const orderNumber = order?.orderNumber || '';
             return NextResponse.redirect(
                 new URL(`/checkout/success?order=${orderNumber}`, req.url)
             );

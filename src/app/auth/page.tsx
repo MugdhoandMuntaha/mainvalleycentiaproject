@@ -61,7 +61,7 @@ function AuthPageContent() {
             if (error) {
                 setError(error.message);
             } else {
-                setSuccess('Account created! Check your email to verify your account.');
+                setSuccess('Account created successfully!');
             }
         }
         setSubmitting(false);

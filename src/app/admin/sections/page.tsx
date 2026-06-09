@@ -7,8 +7,8 @@ import {
 } from 'lucide-react';
 import {
     getAdminSections, createSection, updateSection, deleteSection,
-} from '@/lib/supabase/adminQueries';
-import type { AdminSection, SectionFormData } from '@/lib/supabase/adminQueries';
+} from '@/lib/db/adminQueries';
+import type { AdminSection, SectionFormData } from '@/lib/db/adminQueries';
 
 const SECTION_TYPES = [
     { value: 'best_sellers', label: 'Best Sellers' },

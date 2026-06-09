@@ -20,12 +20,10 @@ interface BrandsThatLeadProps {
     background?: string;
 }
 
-const defaultBrands: BrandCard[] = [
-    
-];
-
-export default function BrandsThatLead({ brands: propBrands, background = '#ffffff' }: BrandsThatLeadProps) {
-    const brands = propBrands && propBrands.length > 0 ? propBrands : defaultBrands;
+export default function BrandsThatLead({ brands = [], background = '#ffffff' }: BrandsThatLeadProps) {
+    if (!brands || brands.length === 0) {
+        return null;
+    }
     return (
         <section
             style={{

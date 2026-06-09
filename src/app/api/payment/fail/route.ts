@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-function getSupabase() {
-    return createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-}
+import connectToDatabase from '@/lib/mongodb';
+import Order from '@/lib/models/Order';
 
 export async function POST(req: NextRequest) {
     try {
@@ -14,14 +8,14 @@ export async function POST(req: NextRequest) {
         const tran_id = formData.get('tran_id') as string;
 
         if (tran_id) {
-            const supabase = getSupabase();
-            await supabase
-                .from('orders')
-                .update({
-                    payment_status: 'failed',
-                    updated_at: new Date().toISOString(),
-                })
-                .eq('transaction_id', tran_id);
+            await connectToDatabase();
+            await Order.findOneAndUpdate(
+                { transactionId: tran_id },
+                {
+                    paymentStatus: 'failed',
+                    $push: { statusHistory: { status: 'failed', note: 'Payment failed' } }
+                }
+            );
         }
 
         return NextResponse.redirect(new URL('/checkout/fail', req.url));

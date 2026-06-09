@@ -2,8 +2,8 @@ import HeroCarousel from '@/components/HeroCarousel';
 import ProductCarouselSection from '@/components/ProductCarouselSection';
 import BrandsThatLead from '@/components/BrandsThatLead';
 import VisibleChange from '@/components/VisibleChange';
-import { getHeroSlides, getHomepageSections, getBrands, getVisibleChanges } from '@/lib/supabase/queries';
-import type { SectionProductCard } from '@/lib/supabase/queries';
+import { getHeroSlides, getHomepageSections, getBrands, getVisibleChanges } from '@/lib/db/queries';
+import type { SectionProductCard } from '@/lib/db/queries';
 import type { SectionProduct } from '@/data/homeSections';
 
 /** Map Supabase section products → the SectionProduct shape ProductCarouselSection expects */
@@ -13,7 +13,7 @@ function toSectionProduct(p: SectionProductCard): SectionProduct {
   const badgeText = primaryBadge?.label || primaryBadge?.badge || undefined;
   const isPremium = badgeText?.toLowerCase() === 'premium';
   return {
-    id: typeof p.id === 'string' ? parseInt(p.id.replace(/-/g, '').slice(0, 8), 16) : 0,
+    id: p.id,
     slug: (p.slug as string) || '',
     image: (p.primary_image_url as string) || '/no-image.svg',
     title: (p.name as string) || '',
@@ -28,6 +28,7 @@ function toSectionProduct(p: SectionProductCard): SectionProduct {
     badge: badgeText,
     badgeColor: isPremium ? '#f0c14b' : (primaryBadge?.color || undefined),
     extraBadge: (p.custom_badge_text as string) || undefined,
+    inStock: p.in_stock !== undefined ? p.in_stock : true,
   };
 }
 
@@ -74,17 +75,18 @@ export default async function HomePage() {
   const customSections = productSections.filter((s) => !CORE_TYPES.includes(s.section_type) && s.section_type !== 'power_care_duos');
 
   // Map brands for BrandsThatLead
-  const brandCards = brands.map((b, i) => ({
-    id: i + 1,
-    name: b.name,
-    slug: b.slug,
-    tagline: b.tagline || '',
-    image: b.logo_url || '/no-image.svg',
-    background: b.accent_color
-      ? `linear-gradient(135deg, ${b.accent_color}cc 0%, ${b.accent_color} 50%, ${b.accent_color}dd 100%)`
-      : getBrandGradient(b.slug),
-    textColor: b.text_color || undefined,
-  }));
+  const brandCards = brands.map((b, i) => {
+    const accent = b.accent_color || '#c4a882';
+    return {
+      id: i + 1,
+      name: b.name,
+      slug: b.slug,
+      tagline: b.tagline || '',
+      image: b.logo_url || '/no-image.svg',
+      background: `linear-gradient(135deg, ${accent}cc 0%, ${accent} 50%, ${accent}dd 100%)`,
+      textColor: b.text_color || undefined,
+    };
+  });
 
   return (
     <>
@@ -135,14 +137,6 @@ export default async function HomePage() {
   );
 }
 
-/** Returns a gradient string per brand slug */
-function getBrandGradient(slug: string): string {
-  const gradients: Record<string, string> = {
-    'bare-anatomy': 'linear-gradient(135deg, #b8e0d2 0%, #d4edda 50%, #c9e4dc 100%)',
-    'chemist-at-play': 'linear-gradient(135deg, #e8b4f8 0%, #d9a3f0 50%, #c98de8 100%)',
-    'sun-scoop': 'linear-gradient(135deg, #f5e642 0%, #f0d800 50%, #e6cc00 100%)',
-  };
-  return gradients[slug] || 'linear-gradient(135deg, #c4a882 0%, #b89b72 50%, #a88d65 100%)';
-}
+
 
   

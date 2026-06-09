@@ -14,7 +14,7 @@ import {
     AlertTriangle,
     Megaphone,
 } from 'lucide-react';
-import { getAdminSiteSettings, updateSiteSetting, type SiteSettingRow } from '@/lib/supabase/adminQueries';
+import { getAdminSiteSettings, updateSiteSetting, type SiteSettingRow } from '@/lib/db/adminQueries';
 
 // Human-readable configs for each setting key
 const SETTING_META: Record<string, { label: string; icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>; fields: { key: string; label: string; type: 'number' | 'text' | 'boolean'; suffix?: string }[] }> = {

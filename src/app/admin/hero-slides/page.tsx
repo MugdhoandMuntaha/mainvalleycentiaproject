@@ -4,12 +4,13 @@ import React, { useEffect, useState, useMemo } from 'react';
 import Image from 'next/image';
 import {
     Plus, Search, Edit2, Trash2, Image as ImageIcon, Eye,
-    EyeOff, X, Loader2, ExternalLink,
+    EyeOff, X, Loader2, ExternalLink, Upload,
 } from 'lucide-react';
+import { uploadFile } from '@/lib/upload';
 import {
     getAdminHeroSlides, createHeroSlide, updateHeroSlide, deleteHeroSlide,
-} from '@/lib/supabase/adminQueries';
-import type { AdminHeroSlide, HeroSlideFormData } from '@/lib/supabase/adminQueries';
+} from '@/lib/db/adminQueries';
+import type { AdminHeroSlide, HeroSlideFormData } from '@/lib/db/adminQueries';
 
 /* ===== Default form state ===== */
 const emptyForm: HeroSlideFormData = {
@@ -29,6 +30,8 @@ export default function AdminHeroSlidesPage() {
     const [form, setForm] = useState<HeroSlideFormData>(emptyForm);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [uploadingImage, setUploadingImage] = useState(false);
+    const [uploadingMobileImage, setUploadingMobileImage] = useState(false);
 
     // Delete confirmation
     const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -340,13 +343,53 @@ export default function AdminHeroSlidesPage() {
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
                             <div>
                                 <label style={labelStyle}>Desktop Image URL *</label>
-                                <input
-                                    type="text"
-                                    value={form.image_url}
-                                    onChange={(e) => setField('image_url', e.target.value)}
-                                    placeholder="https://..."
-                                    style={inputStyle}
-                                />
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    <input
+                                        type="text"
+                                        value={form.image_url}
+                                        onChange={(e) => setField('image_url', e.target.value)}
+                                        placeholder="https://..."
+                                        style={{ ...inputStyle, flex: 1 }}
+                                    />
+                                    <label style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        padding: '10px 14px',
+                                        background: 'var(--color-bg-secondary)',
+                                        border: '1px solid var(--color-border)',
+                                        borderRadius: 'var(--radius-md)',
+                                        color: 'var(--color-text-secondary)',
+                                        cursor: uploadingImage ? 'not-allowed' : 'pointer',
+                                        fontSize: 13,
+                                        fontWeight: 500,
+                                        transition: 'all var(--transition-fast)',
+                                        opacity: uploadingImage ? 0.7 : 1,
+                                        whiteSpace: 'nowrap',
+                                    }}>
+                                        <Upload size={14} />
+                                        {uploadingImage ? '...' : 'Upload'}
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            disabled={uploadingImage}
+                                            style={{ display: 'none' }}
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                setUploadingImage(true);
+                                                try {
+                                                    const url = await uploadFile(file);
+                                                    setField('image_url', url);
+                                                } catch (err: any) {
+                                                    alert(err.message || 'Upload failed');
+                                                } finally {
+                                                    setUploadingImage(false);
+                                                }
+                                            }}
+                                        />
+                                    </label>
+                                </div>
                                 {form.image_url && (
                                     <div style={{
                                         position: 'relative', width: '100%', height: 100, marginTop: 8,
@@ -358,13 +401,53 @@ export default function AdminHeroSlidesPage() {
                             </div>
                             <div>
                                 <label style={labelStyle}>Mobile Image URL (Square)</label>
-                                <input
-                                    type="text"
-                                    value={form.mobile_image_url}
-                                    onChange={(e) => setField('mobile_image_url', e.target.value)}
-                                    placeholder="https://..."
-                                    style={inputStyle}
-                                />
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    <input
+                                        type="text"
+                                        value={form.mobile_image_url}
+                                        onChange={(e) => setField('mobile_image_url', e.target.value)}
+                                        placeholder="https://..."
+                                        style={{ ...inputStyle, flex: 1 }}
+                                    />
+                                    <label style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        padding: '10px 14px',
+                                        background: 'var(--color-bg-secondary)',
+                                        border: '1px solid var(--color-border)',
+                                        borderRadius: 'var(--radius-md)',
+                                        color: 'var(--color-text-secondary)',
+                                        cursor: uploadingMobileImage ? 'not-allowed' : 'pointer',
+                                        fontSize: 13,
+                                        fontWeight: 500,
+                                        transition: 'all var(--transition-fast)',
+                                        opacity: uploadingMobileImage ? 0.7 : 1,
+                                        whiteSpace: 'nowrap',
+                                    }}>
+                                        <Upload size={14} />
+                                        {uploadingMobileImage ? '...' : 'Upload'}
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            disabled={uploadingMobileImage}
+                                            style={{ display: 'none' }}
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                setUploadingMobileImage(true);
+                                                try {
+                                                    const url = await uploadFile(file);
+                                                    setField('mobile_image_url', url);
+                                                } catch (err: any) {
+                                                    alert(err.message || 'Upload failed');
+                                                } finally {
+                                                    setUploadingMobileImage(false);
+                                                }
+                                            }}
+                                        />
+                                    </label>
+                                </div>
                                 {form.mobile_image_url && (
                                     <div style={{
                                         position: 'relative', width: '100%', height: 100, marginTop: 8,

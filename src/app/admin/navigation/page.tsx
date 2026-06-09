@@ -9,8 +9,8 @@ import {
 import {
     getAdminNavLinks, createNavLink, updateNavLink, deleteNavLink,
     getBrandsAndCategories,
-} from '@/lib/supabase/adminQueries';
-import type { AdminNavLink, NavLinkFormData, CategoryOption } from '@/lib/supabase/adminQueries';
+} from '@/lib/db/adminQueries';
+import type { AdminNavLink, NavLinkFormData, CategoryOption } from '@/lib/db/adminQueries';
 
 const emptyForm: NavLinkFormData = {
     parent_id: null, label: '', href: '#',

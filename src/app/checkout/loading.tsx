@@ -1,5 +1,5 @@
-import LoadingSpinner from '@/components/LoadingSpinner';
+import { CheckoutPageSkeleton } from '@/components/Skeletons';
 
 export default function CheckoutLoading() {
-    return <LoadingSpinner message="Preparing checkout..." />;
+    return <CheckoutPageSkeleton />;
 }

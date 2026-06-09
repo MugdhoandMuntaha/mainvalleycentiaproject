@@ -1,5 +1,5 @@
-import LoadingSpinner from '@/components/LoadingSpinner';
+import { CartPageSkeleton } from '@/components/Skeletons';
 
 export default function CartLoading() {
-    return <LoadingSpinner message="Loading your cart..." />;
+    return <CartPageSkeleton />;
 }

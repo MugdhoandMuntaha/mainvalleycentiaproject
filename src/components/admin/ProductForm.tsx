@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation';
 import {
     Save, ArrowLeft, Plus, Trash2, ChevronDown, ChevronUp,
     ImageIcon, Tag, Star, Sparkles, Settings, FileText,
-    DollarSign, Package as PackageIcon, Search, Layers, Ticket,
+    DollarSign, Package as PackageIcon, Search, Layers, Ticket, Upload,
 } from 'lucide-react';
+import { uploadFile } from '@/lib/upload';
 import {
     createProduct, updateProduct, getAdminProductById, getBrandsAndCategories,
-} from '@/lib/supabase/adminQueries';
-import type { ProductFormData, BrandOption, CategoryOption, SectionOption } from '@/lib/supabase/adminQueries';
+    getAvailableCouponsSimple, getProductCoupon, assignProductCoupon,
+} from '@/lib/db/adminQueries';
+import type { ProductFormData, BrandOption, CategoryOption, SectionOption } from '@/lib/db/adminQueries';
 
 // ============================================================================
 // TYPES
@@ -73,6 +75,7 @@ export default function ProductForm({ productId }: Props) {
     const [sections, setSections] = useState<SectionOption[]>([]);
     const [loading, setLoading] = useState(isEdit);
     const [saving, setSaving] = useState(false);
+    const [uploadingIndices, setUploadingIndices] = useState<{ [key: number]: boolean }>({});
     const [tagsInput, setTagsInput] = useState('');
     const [concernsInput, setConcernsInput] = useState('');
 
@@ -97,101 +100,106 @@ export default function ProductForm({ productId }: Props) {
     // Load brands/categories + product data (if editing)
     useEffect(() => {
         async function init() {
-            const { brands: b, categories: c, sections: s } = await getBrandsAndCategories();
-            setBrands(b);
-            setCategories(c);
-            setSections(s);
+            try {
+                const { brands: b, categories: c, sections: s } = await getBrandsAndCategories();
+                setBrands(b || []);
+                setCategories(c || []);
+                setSections(s || []);
 
-            // Fetch all active coupons for the dropdown
-            const supabase = (await import('@/lib/supabase/client')).createClient();
-            const { data: allCoupons } = await supabase
-                .from('coupons')
-                .select('id, code')
-                .eq('is_active', true)
-                .order('code');
-            setAvailableCoupons(allCoupons || []);
+                // Fetch all active coupons for the dropdown using the MongoDB helper
+                const allCoupons = await getAvailableCouponsSimple();
+                setAvailableCoupons(allCoupons || []);
 
-            if (productId) {
-                const product = await getAdminProductById(productId);
-                if (product) {
-                    setForm({
-                        name: product.name,
-                        slug: product.slug,
-                        subtitle: product.subtitle || '',
-                        short_description: product.short_description || '',
-                        description: product.description || '',
-                        how_to_use: product.how_to_use || '',
-                        ingredients: product.ingredients || '',
-                        base_price: product.base_price,
-                        discount_percent: product.discount_percent,
-                        cost_price: product.cost_price,
-                        sku: product.sku || '',
-                        barcode: product.barcode || '',
-                        weight_grams: product.weight_grams,
-                        is_active: product.is_active,
-                        is_featured: product.is_featured,
-                        in_stock: product.in_stock,
-                        stock_quantity: product.stock_quantity,
-                        low_stock_threshold: product.low_stock_threshold,
-                        meta_title: product.meta_title || '',
-                        meta_description: product.meta_description || '',
-                        tags: product.tags || [],
-                        concerns: product.concerns || [],
-                        brand_id: product.brand_id,
-                        category_id: product.category_id,
-                        images: product.images.map(i => ({
-                            url: i.url,
-                            alt_text: i.alt_text || '',
-                            is_primary: i.is_primary,
-                            sort_order: i.sort_order,
-                        })),
-                        sizes: product.sizes.map(s => ({
-                            label: s.label,
-                            ml_value: s.ml_value || '',
-                            price: s.price,
-                            sku_suffix: s.sku_suffix || '',
-                            stock_quantity: s.stock_quantity,
-                            is_default: s.is_default,
-                            is_active: s.is_active,
-                            sort_order: s.sort_order,
-                        })),
-                        key_benefits: product.key_benefits.map(b => ({
-                            icon_name: b.icon_name,
-                            title: b.title,
-                            description: b.description,
-                            sort_order: b.sort_order,
-                        })),
-                        highlights: product.highlights.map(h => ({
-                            highlight: h.highlight,
-                            sort_order: h.sort_order,
-                        })),
-                        badges: product.badges.map(b => ({
-                            badge: b.badge,
-                            custom_label: b.custom_label || '',
-                            badge_color: b.badge_color || '',
-                            is_primary: b.is_primary,
-                        })),
-                        section_ids: product.section_ids || [],
-                    });
-                    setTagsInput((product.tags || []).join(', '));
-                    setConcernsInput((product.concerns || []).join(', '));
+                if (productId) {
+                    const product = await getAdminProductById(productId);
+                    if (product) {
+                        setForm({
+                            name: product.name,
+                            slug: product.slug,
+                            subtitle: product.subtitle || '',
+                            short_description: product.short_description || '',
+                            description: product.description || '',
+                            how_to_use: product.how_to_use || '',
+                            ingredients: product.ingredients || '',
+                            base_price: product.compare_at_price || product.base_price,
+                            discount_percent: product.discount_percent,
+                            cost_price: product.cost_price,
+                            sku: product.sku || '',
+                            barcode: product.barcode || '',
+                            weight_grams: product.weight_grams,
+                            is_active: product.is_active,
+                            is_featured: product.is_featured,
+                            in_stock: product.in_stock,
+                            stock_quantity: product.stock_quantity,
+                            low_stock_threshold: product.low_stock_threshold,
+                            meta_title: product.meta_title || '',
+                            meta_description: product.meta_description || '',
+                            tags: product.tags || [],
+                            concerns: product.concerns || [],
+                            brand_id: product.brand_id,
+                            category_id: product.category_id,
+                            images: product.images.map(i => ({
+                                url: i.url,
+                                alt_text: i.alt_text || '',
+                                is_primary: i.is_primary,
+                                sort_order: i.sort_order,
+                            })),
+                            sizes: product.sizes.map(s => ({
+                                label: s.label,
+                                ml_value: s.ml_value || '',
+                                price: s.price,
+                                sku_suffix: s.sku_suffix || '',
+                                stock_quantity: s.stock_quantity,
+                                is_default: s.is_default,
+                                is_active: s.is_active,
+                                sort_order: s.sort_order,
+                            })),
+                            key_benefits: product.key_benefits.map(b => ({
+                                icon_name: b.icon_name,
+                                title: b.title,
+                                description: b.description,
+                                sort_order: b.sort_order,
+                            })),
+                            highlights: product.highlights.map(h => ({
+                                highlight: h.highlight,
+                                sort_order: h.sort_order,
+                            })),
+                            badges: product.badges.map(b => ({
+                                badge: b.badge,
+                                custom_label: b.custom_label || '',
+                                badge_color: b.badge_color || '',
+                                is_primary: b.is_primary,
+                            })),
+                            section_ids: product.section_ids || [],
+                        });
+                        setTagsInput((product.tags || []).join(', '));
+                        setConcernsInput((product.concerns || []).join(', '));
 
-                    // Load assigned coupon for this product
-                    const supabase2 = (await import('@/lib/supabase/client')).createClient();
-                    const { data: pcRows } = await supabase2
-                        .from('product_coupons')
-                        .select('coupon_id, coupon_price')
-                        .eq('product_id', productId);
-                    if (pcRows && pcRows.length > 0) {
-                        setAssignedCouponId(pcRows[0].coupon_id);
-                        setCouponPrice(pcRows[0].coupon_price);
+                        // Load assigned coupon for this product using the MongoDB helper
+                        const pcRow = await getProductCoupon(productId);
+                        if (pcRow) {
+                            setAssignedCouponId(pcRow.couponId);
+                            setCouponPrice(pcRow.couponPrice);
+                        }
                     }
+                    setLoading(false);
                 }
-                setLoading(false);
+            } catch (err) {
+                console.error("Failed to initialize ProductForm", err);
             }
         }
         init();
     }, [productId]);
+ 
+    // Auto-calculate cost price (selling price) when base price or discount percentage changes
+    useEffect(() => {
+        const base = form.base_price || 0;
+        const discount = form.discount_percent || 0;
+        const calculated = Math.round((base * (1 - discount / 100)) * 100) / 100;
+        if (form.cost_price !== calculated) {
+            setForm(f => ({ ...f, cost_price: calculated }));
+        }
+    }, [form.base_price, form.discount_percent, form.cost_price]);
 
     // Auto-slug from name
     function handleNameChange(name: string) {
@@ -235,36 +243,27 @@ export default function ProductForm({ productId }: Props) {
         setSaving(true);
 
         try {
+            let savedProductId = productId || null;
             if (isEdit && productId) {
                 const { error } = await updateProduct(productId, finalForm);
                 if (error) {
                     alert('Error: ' + error);
+                    setSaving(false);
                     return;
                 }
             } else {
-                const { error } = await createProduct(finalForm);
-                if (error) {
-                    alert('Error: ' + error);
+                const { id, error } = await createProduct(finalForm);
+                if (error || !id) {
+                    alert('Error: ' + (error || 'Failed to create product'));
+                    setSaving(false);
                     return;
                 }
+                savedProductId = id;
             }
 
-            // Save coupon assignment
-            const supabase = (await import('@/lib/supabase/client')).createClient();
-            const savedProductId = isEdit ? productId : (await supabase.from('products').select('id').eq('slug', finalForm.slug).single()).data?.id;
-            
+            // Save coupon assignment using Mongoose helper
             if (savedProductId) {
-                // Always delete existing assignment first
-                await supabase.from('product_coupons').delete().eq('product_id', savedProductId);
-                
-                // Insert new one if selected
-                if (assignedCouponId) {
-                    await supabase.from('product_coupons').insert({
-                        product_id: savedProductId,
-                        coupon_id: assignedCouponId,
-                        coupon_price: couponPrice || null,
-                    });
-                }
+                await assignProductCoupon(savedProductId, assignedCouponId || null, couponPrice || null);
             }
 
             router.push('/admin/products');
@@ -679,13 +678,14 @@ export default function ProductForm({ productId }: Props) {
                         </div>
                         <div style={gridTwoCol}>
                             <div>
-                                <label style={labelStyle}>Cost Price (৳)</label>
+                                <label style={labelStyle}>Cost Price (৳) (Calculated Selling Price)</label>
                                 <input
                                     type="number"
                                     step="0.01"
-                                    style={inputStyle}
+                                    style={{ ...inputStyle, opacity: 0.7, cursor: 'not-allowed' }}
                                     value={form.cost_price ?? ''}
-                                    onChange={e => setForm(f => ({ ...f, cost_price: e.target.value ? parseFloat(e.target.value) : null }))}
+                                    readOnly
+                                    placeholder="Auto-calculated"
                                 />
                             </div>
                             <div>
@@ -836,16 +836,58 @@ export default function ProductForm({ productId }: Props) {
                                 borderRadius: 'var(--radius-sm)',
                             }}>
                                 <div style={{ flex: 1, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                                    <input
-                                        style={{ ...inputStyle, flex: '1 1 300px' }}
-                                        value={img.url}
-                                        onChange={e => {
-                                            const updated = [...form.images];
-                                            updated[i] = { ...updated[i], url: e.target.value };
-                                            setForm(f => ({ ...f, images: updated }));
-                                        }}
-                                        placeholder="Image URL"
-                                    />
+                                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: '1 1 300px' }}>
+                                        <input
+                                            style={{ ...inputStyle, flex: 1 }}
+                                            value={img.url}
+                                            onChange={e => {
+                                                const updated = [...form.images];
+                                                updated[i] = { ...updated[i], url: e.target.value };
+                                                setForm(f => ({ ...f, images: updated }));
+                                            }}
+                                            placeholder="Image URL"
+                                        />
+                                        <label style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 6,
+                                            padding: '10px 14px',
+                                            background: 'var(--color-bg-secondary)',
+                                            border: '1px solid var(--color-border)',
+                                            borderRadius: 'var(--radius-sm)',
+                                            color: 'var(--color-text-secondary)',
+                                            cursor: uploadingIndices[i] ? 'not-allowed' : 'pointer',
+                                            fontSize: 13,
+                                            fontWeight: 500,
+                                            transition: 'all var(--transition-fast)',
+                                            opacity: uploadingIndices[i] ? 0.7 : 1,
+                                            whiteSpace: 'nowrap',
+                                        }}>
+                                            <Upload size={14} />
+                                            {uploadingIndices[i] ? 'Uploading...' : 'Upload'}
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                disabled={uploadingIndices[i]}
+                                                style={{ display: 'none' }}
+                                                onChange={async (e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (!file) return;
+                                                    setUploadingIndices(prev => ({ ...prev, [i]: true }));
+                                                    try {
+                                                        const url = await uploadFile(file);
+                                                        const updated = [...form.images];
+                                                        updated[i] = { ...updated[i], url };
+                                                        setForm(f => ({ ...f, images: updated }));
+                                                    } catch (err: any) {
+                                                        alert(err.message || 'Upload failed');
+                                                    } finally {
+                                                        setUploadingIndices(prev => ({ ...prev, [i]: false }));
+                                                    }
+                                                }}
+                                            />
+                                        </label>
+                                    </div>
                                     <input
                                         style={{ ...inputStyle, flex: '1 1 150px' }}
                                         value={img.alt_text}

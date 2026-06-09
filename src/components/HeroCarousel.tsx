@@ -16,29 +16,7 @@ interface HeroCarouselProps {
     slides?: HeroSlide[];
 }
 
-const defaultSlides: HeroSlide[] = [
-    {
-        image: 'https://ibb.co.com/tpYyHXK7',
-        alt: 'Hair Strengthening Spray',
-        background: 'linear-gradient(135deg, #e8d5b7 0%, #f0e4cf 30%, #f5eadb 60%, #eeddc4 100%)',
-        link: '/shop',
-    },
-    {
-        image: 'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=1400&q=80',
-        alt: 'Anti Acne Face Wash',
-        background: 'linear-gradient(135deg, #d4e8d0 0%, #e2f0de 30%, #eaf5e6 60%, #d8ead4 100%)',
-        link: '/shop',
-    },
-    {
-        image: 'https://images.unsplash.com/photo-1611930022073-b7a4ba5fcccd?w=1400&q=80',
-        alt: 'Daily Sunscreen SPF 50+',
-        background: 'linear-gradient(135deg, #fce4b8 0%, #fdedc8 30%, #fff3d8 60%, #fae5b6 100%)',
-        link: '/shop',
-    },
-];
-
-export default function HeroCarousel({ slides: propSlides }: HeroCarouselProps) {
-    const slides = propSlides && propSlides.length > 0 ? propSlides : defaultSlides;
+export default function HeroCarousel({ slides = [] }: HeroCarouselProps) {
     const [current, setCurrent] = useState(0);
     const [imgError, setImgError] = useState<Set<number>>(new Set());
     const [isDragging, setIsDragging] = useState(false);
@@ -57,20 +35,24 @@ export default function HeroCarousel({ slides: propSlides }: HeroCarouselProps) 
     };
 
     const goNext = useCallback(() => {
+        if (slides.length === 0) return;
         setCurrent((prev) => (prev + 1) % slides.length);
         setDragDelta(0);
-    }, []);
+    }, [slides.length]);
 
     const goPrev = useCallback(() => {
+        if (slides.length === 0) return;
         setCurrent((prev) => (prev - 1 + slides.length) % slides.length);
         setDragDelta(0);
-    }, []);
+    }, [slides.length]);
 
     // Auto-advance
     const resetAutoPlay = useCallback(() => {
         if (autoPlayRef.current) clearInterval(autoPlayRef.current);
-        autoPlayRef.current = setInterval(goNext, 5000);
-    }, [goNext]);
+        if (slides.length > 1) {
+            autoPlayRef.current = setInterval(goNext, 5000);
+        }
+    }, [goNext, slides.length]);
 
     useEffect(() => {
         resetAutoPlay();
@@ -81,10 +63,10 @@ export default function HeroCarousel({ slides: propSlides }: HeroCarouselProps) 
 
     // Pointer handlers for drag/swipe
     const handlePointerDown = (e: React.PointerEvent) => {
+        if (slides.length <= 1) return;
         setIsDragging(true);
         setDragStartX(e.clientX);
         setDragDelta(0);
-        // Removed setPointerCapture to allow clicks to bubble correctly to child Links
     };
 
     const handlePointerMove = (e: React.PointerEvent) => {
@@ -113,6 +95,10 @@ export default function HeroCarousel({ slides: propSlides }: HeroCarouselProps) 
     const handleClick = (e: React.MouseEvent) => {
         if (!wasClick.current) e.preventDefault();
     };
+
+    if (!slides || slides.length === 0) {
+        return null;
+    }
 
     const slide = slides[current];
 

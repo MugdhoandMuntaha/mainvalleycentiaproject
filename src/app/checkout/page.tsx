@@ -10,9 +10,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useCart } from '@/lib/CartContext';
-import { getUserAddresses, createAddress, updateAddress, deleteAddress, getSiteSetting } from '@/lib/supabase/queries';
-import type { UserAddress, AddressFormData } from '@/lib/supabase/queries';
-import { createClient } from '@/lib/supabase/client';
+import { CheckoutPageSkeleton } from '@/components/Skeletons';
+import { getUserAddresses, createAddress, updateAddress, deleteAddress, getSiteSetting } from '@/lib/db/queries';
+import type { UserAddress, AddressFormData } from '@/lib/db/queries';
 
 const emptyAddress: AddressFormData = {
     label: 'Home', full_name: '', phone: '', address_line_1: '',
@@ -37,6 +37,10 @@ export default function CheckoutPage() {
     const [error, setError] = useState('');
     const [paymentMethod, setPaymentMethod] = useState<'online' | 'cod'>('online');
     const navigatingAway = useRef(false);
+    const addressSectionRef = useRef<HTMLDivElement>(null);
+    const [shakeWarning, setShakeWarning] = useState(false);
+    const [blinkAddresses, setBlinkAddresses] = useState(false);
+    const [showWarning, setShowWarning] = useState(false);
     const [freeShippingThreshold, setFreeShippingThreshold] = useState(999);
     const [shippingFeeDhaka, setShippingFeeDhaka] = useState(80);
     const [shippingFeeOutside, setShippingFeeOutside] = useState(150);
@@ -147,7 +151,19 @@ export default function CheckoutPage() {
     };
 
     const handlePay = async () => {
-        if (!user || !selectedAddr) { setError('Please select a delivery address'); return; }
+        if (!user) return;
+        if (!selectedAddr) {
+            setShowWarning(true);
+            setShakeWarning(true);
+            setBlinkAddresses(true);
+            addressSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(() => {
+                setShakeWarning(false);
+                setBlinkAddresses(false);
+            }, 800);
+            setError('Please select a delivery address');
+            return;
+        }
         const addr = addresses.find(a => a.id === selectedAddr);
         if (!addr) return;
 
@@ -155,14 +171,9 @@ export default function CheckoutPage() {
         setError('');
 
         try {
-            const supabase = createClient();
-            const { data: { session } } = await supabase.auth.getSession();
-            const accessToken = session?.access_token;
-
             const orderPayload = {
                 userId: user.id,
                 email: user.email,
-                accessToken,
                 items: items.map(i => ({ id: i.id, name: i.name, image: i.image, slug: i.slug, size: i.size, quantity: i.quantity, price: i.price })),
                 address: {
                     full_name: addr.full_name,
@@ -226,11 +237,7 @@ export default function CheckoutPage() {
     };
 
     if (authLoading || !user || !isHydrated) {
-        return (
-            <div className="co-loading">
-                <Loader2 size={28} color="#f5c518" className="co-spinner" />
-            </div>
-        );
+        return <CheckoutPageSkeleton />;
     }
 
     return (
@@ -254,7 +261,7 @@ export default function CheckoutPage() {
 
                     {/* Step 1: Address */}
                     <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-                        <div className="co-card">
+                        <div ref={addressSectionRef} className="co-card">
                             <div className="co-step-header">
                                 <div className="co-step-num">1</div>
                                 <h2 className="co-step-title">Delivery Address</h2>
@@ -278,7 +285,7 @@ export default function CheckoutPage() {
                                         {addresses.map(addr => (
                                             <div
                                                 key={addr.id}
-                                                className={`co-addr-card${selectedAddr === addr.id ? ' co-addr-card--selected' : ''}`}
+                                                className={`co-addr-card${selectedAddr === addr.id ? ' co-addr-card--selected' : ''}${blinkAddresses ? ' co-addr-card--blink' : ''}`}
                                                 onClick={() => setSelectedAddr(selectedAddr === addr.id ? null : addr.id)}
                                             >
                                                 <div className={`co-radio${selectedAddr === addr.id ? ' co-radio--on' : ''}`} />
@@ -470,19 +477,28 @@ export default function CheckoutPage() {
                             </label>
                         </div>
 
-                        {error && <div className="co-error">{error}</div>}
-
-                        {!selectedAddr && (
-                            <div className="co-addr-warn">
-                                <MapPin size={13} style={{ flexShrink: 0 }} />
-                                Please select a delivery address to continue
-                            </div>
+                        {error && (
+                            <motion.div
+                                className="co-error"
+                                initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                                animate={{
+                                    opacity: 1,
+                                    height: 'auto',
+                                    marginBottom: 12,
+                                    x: (shakeWarning && error.includes('address')) ? [0, -10, 10, -10, 10, -5, 5, 0] : 0,
+                                    scale: (shakeWarning && error.includes('address')) ? [1, 1.03, 1.03, 1] : 1,
+                                }}
+                                transition={{ duration: 0.3 }}
+                                style={{ overflow: 'hidden' }}
+                            >
+                                {error}
+                            </motion.div>
                         )}
 
                         <button
                             onClick={handlePay}
-                            disabled={paying || !selectedAddr}
-                            className={`co-pay-btn${!selectedAddr ? ' co-pay-btn--disabled' : ''}`}
+                            disabled={paying}
+                            className="co-pay-btn"
                         >
                             {paying ? (
                                 <><Loader2 size={17} className="co-spinner" /> Processing...</>
@@ -620,9 +636,16 @@ export default function CheckoutPage() {
                     border: 1px solid #ebebeb; background: #fafafa;
                     transition: border-color 0.2s, background 0.2s;
                 }
-                .co-addr-card--selected {
+                 .co-addr-card--selected {
                     border: 1.5px solid #f5c518;
                     background: rgba(245,197,24,0.03);
+                }
+                @keyframes blink-addr {
+                    0%, 100% { border-color: #ebebeb; background: #fafafa; }
+                    50% { border-color: #f5c518; background: rgba(245,197,24,0.15); box-shadow: 0 0 8px rgba(245,197,24,0.3); }
+                }
+                .co-addr-card--blink {
+                    animation: blink-addr 0.4s ease-in-out 2;
                 }
                 .co-radio {
                     width: 17px; height: 17px; border-radius: 50%; flex-shrink: 0; margin-top: 3px;

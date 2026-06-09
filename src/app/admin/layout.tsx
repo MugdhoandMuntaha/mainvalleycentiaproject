@@ -84,7 +84,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         );
     }
 
-    const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Admin';
+    const displayName = user?.fullName || user?.name || user?.email?.split('@')[0] || 'Admin';
     const displayEmail = user?.email || '';
     const initials = displayName
         .split(' ')

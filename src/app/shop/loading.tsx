@@ -1,5 +1,5 @@
-import LoadingSpinner from '@/components/LoadingSpinner';
+import { ShopGridSkeleton } from '@/components/Skeletons';
 
 export default function ShopLoading() {
-    return <LoadingSpinner message="Loading products..." />;
+    return <ShopGridSkeleton />;
 }

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import mongoose from 'mongoose';
+import connectToDatabase from '@/lib/mongodb';
+import Order from '@/lib/models/Order';
 
 const store_id = process.env.SSLCOMMERZ_STORE_ID || '';
 const store_passwd = process.env.SSLCOMMERZ_STORE_PASSWORD || '';
@@ -10,16 +12,6 @@ const SSLCOMMERZ_API = is_sandbox
     ? 'https://sandbox.sslcommerz.com/gwprocess/v4/api.php'
     : 'https://securepay.sslcommerz.com/gwprocess/v4/api.php';
 
-// Server-side supabase — uses user's token for RLS
-function getSupabase(accessToken?: string) {
-    const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        accessToken ? { global: { headers: { Authorization: `Bearer ${accessToken}` } } } : undefined
-    );
-    return supabase;
-}
-
 function generateOrderNumber() {
     const ts = Date.now().toString(36).toUpperCase();
     const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -29,62 +21,56 @@ function generateOrderNumber() {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { userId, items, address, subtotal, shipping, tax, total, accessToken } = body;
+        const { userId, items, address, subtotal, shipping, tax, total } = body;
 
         if (!userId || !items?.length || !address || !total) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        const supabase = getSupabase(accessToken);
+        await connectToDatabase();
         const orderNumber = generateOrderNumber();
         const tran_id = `TXN_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
-        // 1. Create order in DB
-        const { data: order, error: orderErr } = await supabase
-            .from('orders')
-            .insert({
-                user_id: userId,
-                order_number: orderNumber,
-                shipping_name: address.full_name,
-                shipping_phone: address.phone,
-                shipping_address_line_1: address.address_line_1,
-                shipping_address_line_2: address.address_line_2 || null,
-                shipping_city: address.city,
-                shipping_state: address.state,
-                shipping_postal_code: address.postal_code,
-                shipping_country: address.country || 'Bangladesh',
-                subtotal,
-                shipping_cost: shipping,
-                tax,
-                total,
-                status: 'pending',
-                payment_status: 'pending',
-                transaction_id: tran_id,
-            })
-            .select('id')
-            .single();
+        const orderItems = items.map((item: { id: string; name: string; image: string; slug: string; size?: string; quantity: number; price: number }) => ({
+            productId: new mongoose.Types.ObjectId(item.id),
+            productName: item.name,
+            productImage: item.image,
+            productSlug: item.slug,
+            sizeLabel: item.size || null,
+            unitPrice: item.price,
+            quantity: item.quantity,
+            totalPrice: item.price * item.quantity,
+        }));
 
-        if (orderErr || !order) {
-            console.error('Order create error:', orderErr);
+        // 1. Create order in DB
+        const order = await Order.create({
+            userId: new mongoose.Types.ObjectId(userId),
+            orderNumber: orderNumber,
+            shippingName: address.full_name,
+            shippingPhone: address.phone,
+            shippingAddressLine1: address.address_line_1,
+            shippingAddressLine2: address.address_line_2 || null,
+            shippingCity: address.city,
+            shippingState: address.state,
+            shippingPostalCode: address.postal_code,
+            shippingCountry: address.country || 'Bangladesh',
+            subtotal,
+            shippingCost: shipping,
+            tax,
+            total,
+            status: 'pending',
+            paymentStatus: 'pending',
+            paymentMethod: 'credit_card',
+            transactionId: tran_id,
+            orderItems,
+            statusHistory: [{ status: 'pending', note: 'Order initiated' }],
+        });
+
+        if (!order) {
             return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
         }
 
-        // 2. Insert order items
-        const orderItems = items.map((item: { id: string; name: string; image: string; slug: string; size?: string; quantity: number; price: number }) => ({
-            order_id: order.id,
-            product_id: item.id,
-            product_name: item.name,
-            product_image: item.image,
-            product_slug: item.slug,
-            size: item.size || null,
-            quantity: item.quantity,
-            unit_price: item.price,
-            total_price: item.price * item.quantity,
-        }));
-
-        await supabase.from('order_items').insert(orderItems);
-
-        // 3. Initiate SSLCommerz session (direct API call — no library needed)
+        // 2. Initiate SSLCommerz session (direct API call — no library needed)
         const sslParams = new URLSearchParams({
             store_id,
             store_passwd,
@@ -127,10 +113,8 @@ export async function POST(req: NextRequest) {
 
         if (apiResponse?.GatewayPageURL) {
             // Save session key
-            await supabase
-                .from('orders')
-                .update({ ssl_session_key: apiResponse.sessionkey })
-                .eq('id', order.id);
+            order.sslSessionKey = apiResponse.sessionkey;
+            await order.save();
 
             return NextResponse.json({
                 url: apiResponse.GatewayPageURL,
@@ -142,6 +126,6 @@ export async function POST(req: NextRequest) {
         }
     } catch (err) {
         console.error('Payment init error:', err);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal server error' }, { status: 500 });
     }
 }

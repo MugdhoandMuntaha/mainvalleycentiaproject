@@ -12,13 +12,13 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useCart } from '@/lib/CartContext';
+import { ProfilePageSkeleton } from '@/components/Skeletons';
 import { useWishlist } from '@/lib/WishlistContext';
-import { createClient } from '@/lib/supabase/client';
 import {
     getUserAddresses, createAddress, updateAddress, deleteAddress,
     getUserOrders, getUserOrderCount, getWishlistProducts,
-} from '@/lib/supabase/queries';
-import type { UserAddress, AddressFormData, UserOrder, ProductCard } from '@/lib/supabase/queries';
+} from '@/lib/db/queries';
+import type { UserAddress, AddressFormData, UserOrder, ProductCard } from '@/lib/db/queries';
 
 /* ===== Tab types ===== */
 type Tab = 'profile' | 'orders' | 'wishlist' | 'addresses' | 'security';
@@ -87,15 +87,15 @@ export default function ProfilePage() {
     /* ===== Populate profile fields ===== */
     useEffect(() => {
         if (profile) {
-            setFullName(profile.full_name || user?.user_metadata?.full_name || '');
-            setDisplayName(profile.display_name || profile.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || '');
+            setFullName(profile.full_name || user?.fullName || user?.name || '');
+            setDisplayName(profile.display_name || profile.full_name || user?.displayName || user?.fullName || user?.name || user?.email?.split('@')[0] || '');
             setPhone(profile.phone || '');
             setDob(profile.date_of_birth || '');
             setGender(profile.gender || '');
             setAvatarUrl(profile.avatar_url || '');
         } else if (user) {
-            setFullName(user.user_metadata?.full_name || '');
-            setDisplayName(user.user_metadata?.full_name || user.email?.split('@')[0] || '');
+            setFullName(user.fullName || user.name || '');
+            setDisplayName(user.displayName || user.fullName || user.name || user.email?.split('@')[0] || '');
         }
     }, [profile, user]);
 
@@ -191,11 +191,25 @@ export default function ProfilePage() {
         if (newPassword !== confirmPassword) { setPwMsg('Passwords do not match'); return; }
         setPwSaving(true);
         setPwMsg('');
-        const supabase = createClient();
-        const { error } = await supabase.auth.updateUser({ password: newPassword });
-        setPwSaving(false);
-        if (error) { setPwMsg(error.message); }
-        else { setPwMsg('Password updated!'); setNewPassword(''); setConfirmPassword(''); }
+        try {
+            const res = await fetch('/api/auth/profile', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: newPassword }),
+            });
+            const data = await res.json();
+            setPwSaving(false);
+            if (!res.ok) {
+                setPwMsg(data.error || 'Failed to update password');
+            } else {
+                setPwMsg('Password updated!');
+                setNewPassword('');
+                setConfirmPassword('');
+            }
+        } catch (err) {
+            setPwSaving(false);
+            setPwMsg('Failed to update password');
+        }
         setTimeout(() => setPwMsg(''), 4000);
     };
 
@@ -226,11 +240,7 @@ export default function ProfilePage() {
     }, [activeTab, user, wishlistCount]);
 
     if (loading || !user) {
-        return (
-            <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f8f5' }}>
-                <Loader2 size={32} color="#f5c518" style={{ animation: 'spin 1s linear infinite' }} />
-            </div>
-        );
+        return <ProfilePageSkeleton />;
     }
 
     const initials = (displayName || user.email || 'U').split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
@@ -970,7 +980,7 @@ export default function ProfilePage() {
                                     <div>
                                         <div style={{ fontSize: 11, fontWeight: 600, color: '#aaa', textTransform: 'uppercase', letterSpacing: 0.5 }}>Member Since</div>
                                         <div style={{ fontSize: 13, fontWeight: 500, color: '#1a1a1a', marginTop: 1 }}>
-                                            {new Date(user.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                                            {new Date(user.createdAt || new Date()).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                                         </div>
                                     </div>
                                 </div>

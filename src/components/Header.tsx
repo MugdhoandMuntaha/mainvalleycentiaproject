@@ -7,8 +7,8 @@ import { Search, ShoppingBag, User, Menu, X, ChevronDown, ChevronLeft, ArrowRigh
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCart } from '@/lib/CartContext';
 import { useAuth } from '@/lib/AuthContext';
-import { getProductCards, getNavLinks, getSiteSetting } from '@/lib/supabase/queries';
-import type { NavLinkItem } from '@/lib/supabase/queries';
+import { getProductCards, getNavLinks, getSiteSetting } from '@/lib/db/queries';
+import type { NavLinkItem } from '@/lib/db/queries';
 
 interface NavLink {
     name: string;
@@ -59,7 +59,30 @@ export default function Header() {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchFocused, setSearchFocused] = useState(false);
     const { totalItems, addToCart, cartBounce } = useCart();
-    const { user } = useAuth();
+    const { user, signOut } = useAuth();
+    const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+    const profileMenuRef = useRef<HTMLDivElement>(null);
+
+    // Close profile dropdown on outside click
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+                setProfileDropdownOpen(false);
+            }
+        };
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setProfileDropdownOpen(false);
+        };
+        if (profileDropdownOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+            document.addEventListener('keydown', handleEscape);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, [profileDropdownOpen]);
+
     const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const searchWrapperRef = useRef<HTMLDivElement>(null);
@@ -261,12 +284,12 @@ export default function Header() {
                         }}
                     >
                         <Image 
-                            src="/logo2.png" 
+                            src="/logo69.png" 
                             alt="ValleyCentia Logo" 
                             width={229} 
-                            height={57} 
+                            height={70} 
                             priority
-                            style={{ height: '46px', width: 'auto', objectFit: 'contain' }}
+                            style={{ height: '55px', width: 'auto', objectFit: 'fill' }}
                         />
                     </Link>
                     {/* Spacer */}
@@ -851,46 +874,169 @@ export default function Header() {
                     {/* Right Icons */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
                         {/* Profile */}
-                        <Link
-                            href={user ? '/profile' : '/auth'}
-                            style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#aaa',
-                                cursor: 'pointer',
-                                padding: '8px',
-                                borderRadius: '6px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                transition: 'all 0.15s ease',
-                                textDecoration: 'none',
-                                position: 'relative',
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.color = '#fff';
-                                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.color = '#aaa';
-                                e.currentTarget.style.background = 'none';
-                            }}
-                            aria-label="Profile"
-                        >
-                            {user ? (
-                                <span style={{
-                                    width: '22px', height: '22px', borderRadius: '50%',
-                                    background: 'linear-gradient(135deg, #f5c518, #e6b800)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    fontSize: '10px', fontWeight: 800, color: '#1a1a1a',
-                                    fontFamily: "'Inter', sans-serif",
-                                }}>
-                                    {(user.user_metadata?.full_name || user.email || 'U').charAt(0).toUpperCase()}
-                                </span>
-                            ) : (
+                        {/* Profile */}
+                        {user ? (
+                            <div style={{ position: 'relative' }} ref={profileMenuRef}>
+                                <button
+                                    onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: '#aaa',
+                                        cursor: 'pointer',
+                                        padding: '8px',
+                                        borderRadius: '6px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'all 0.15s ease',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.color = '#fff';
+                                        e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.color = '#aaa';
+                                        e.currentTarget.style.background = 'none';
+                                    }}
+                                    aria-label="Profile Menu"
+                                >
+                                    <span style={{
+                                        width: '22px', height: '22px', borderRadius: '50%',
+                                        background: 'linear-gradient(135deg, #f5c518, #e6b800)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        fontSize: '10px', fontWeight: 800, color: '#1a1a1a',
+                                        fontFamily: "'Inter', sans-serif",
+                                    }}>
+                                        {(user.fullName || user.name || user.email || 'U').charAt(0).toUpperCase()}
+                                    </span>
+                                </button>
+
+                                <AnimatePresence>
+                                    {profileDropdownOpen && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: 10 }}
+                                            style={{
+                                                position: 'absolute',
+                                                top: '100%',
+                                                right: 0,
+                                                marginTop: '8px',
+                                                width: '180px',
+                                                background: '#1a1a1a',
+                                                border: '1px solid #333',
+                                                borderRadius: '8px',
+                                                padding: '8px 0',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)',
+                                                zIndex: 1000,
+                                            }}
+                                        >
+                                            <div style={{ padding: '8px 16px', borderBottom: '1px solid #2a2a2a', marginBottom: '4px' }}>
+                                                <p style={{ margin: 0, fontSize: '11px', color: '#888', fontWeight: 500 }}>Signed in as</p>
+                                                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#fff', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {user.email}
+                                                </p>
+                                            </div>
+                                            <Link
+                                                href="/profile"
+                                                onClick={() => setProfileDropdownOpen(false)}
+                                                style={{
+                                                    padding: '8px 16px',
+                                                    fontSize: '13px',
+                                                    color: '#aaa',
+                                                    textDecoration: 'none',
+                                                    display: 'block',
+                                                    textAlign: 'left',
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    cursor: 'pointer',
+                                                }}
+                                                onMouseEnter={(e) => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = '#2a2a2a'; }}
+                                                onMouseLeave={(e) => { e.currentTarget.style.color = '#aaa'; e.currentTarget.style.background = 'none'; }}
+                                            >
+                                                My Profile
+                                            </Link>
+                                            {user.role === 'admin' && (
+                                                <Link
+                                                    href="/admin"
+                                                    onClick={() => setProfileDropdownOpen(false)}
+                                                    style={{
+                                                        padding: '8px 16px',
+                                                        fontSize: '13px',
+                                                        color: '#aaa',
+                                                        textDecoration: 'none',
+                                                        display: 'block',
+                                                        textAlign: 'left',
+                                                        background: 'none',
+                                                        border: 'none',
+                                                        cursor: 'pointer',
+                                                    }}
+                                                    onMouseEnter={(e) => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = '#2a2a2a'; }}
+                                                    onMouseLeave={(e) => { e.currentTarget.style.color = '#aaa'; e.currentTarget.style.background = 'none'; }}
+                                                >
+                                                    Admin Panel
+                                                </Link>
+                                            )}
+                                            <button
+                                                onClick={async () => {
+                                                    setProfileDropdownOpen(false);
+                                                    await signOut();
+                                                }}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '8px 16px',
+                                                    fontSize: '13px',
+                                                    color: '#ef4444',
+                                                    textDecoration: 'none',
+                                                    display: 'block',
+                                                    textAlign: 'left',
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    cursor: 'pointer',
+                                                    fontFamily: "'Inter', sans-serif",
+                                                }}
+                                                onMouseEnter={(e) => { e.currentTarget.style.background = '#2a2a2a'; }}
+                                                onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+                                            >
+                                                Sign Out
+                                            </button>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        ) : (
+                            <Link
+                                href="/auth"
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#aaa',
+                                    cursor: 'pointer',
+                                    padding: '8px',
+                                    borderRadius: '6px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'all 0.15s ease',
+                                    textDecoration: 'none',
+                                    position: 'relative',
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.color = '#fff';
+                                    e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.color = '#aaa';
+                                    e.currentTarget.style.background = 'none';
+                                }}
+                                aria-label="Profile"
+                            >
                                 <User size={20} />
-                            )}
-                        </Link>
+                            </Link>
+                        )}
                         {/* Cart */}
                         <Link
                             href="/cart"
@@ -1397,6 +1543,87 @@ export default function Header() {
                                     onClose={() => setMobileMenuOpen(false)}
                                 />
                             ))}
+
+                            {/* Mobile User Actions */}
+                            <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #333' }}>
+                                {user ? (
+                                    <>
+                                        <div style={{ padding: '0 8px 12px 8px', borderBottom: '1px solid #222', marginBottom: '8px' }}>
+                                            <p style={{ margin: 0, fontSize: '11px', color: '#888', fontWeight: 500 }}>Signed in as</p>
+                                            <p style={{ margin: '2px 0 0 0', fontSize: '13px', color: '#fff', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                {user.email}
+                                            </p>
+                                        </div>
+                                        <Link
+                                            href="/profile"
+                                            onClick={() => setMobileMenuOpen(false)}
+                                            style={{
+                                                display: 'block',
+                                                fontSize: '15px',
+                                                fontWeight: 500,
+                                                color: '#ccc',
+                                                padding: '12px 8px',
+                                                textDecoration: 'none',
+                                            }}
+                                        >
+                                            My Profile
+                                        </Link>
+                                        {user.role === 'admin' && (
+                                            <Link
+                                                href="/admin"
+                                                onClick={() => setMobileMenuOpen(false)}
+                                                style={{
+                                                    display: 'block',
+                                                    fontSize: '15px',
+                                                    fontWeight: 500,
+                                                    color: '#ccc',
+                                                    padding: '12px 8px',
+                                                    textDecoration: 'none',
+                                                }}
+                                            >
+                                                Admin Panel
+                                            </Link>
+                                        )}
+                                        <button
+                                            onClick={async () => {
+                                                setMobileMenuOpen(false);
+                                                await signOut();
+                                            }}
+                                            style={{
+                                                display: 'block',
+                                                width: '100%',
+                                                textAlign: 'left',
+                                                fontSize: '15px',
+                                                fontWeight: 500,
+                                                color: '#ef4444',
+                                                padding: '12px 8px',
+                                                textDecoration: 'none',
+                                                background: 'none',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                fontFamily: "'Inter', sans-serif",
+                                            }}
+                                        >
+                                            Sign Out
+                                        </button>
+                                    </>
+                                ) : (
+                                    <Link
+                                        href="/auth"
+                                        onClick={() => setMobileMenuOpen(false)}
+                                        style={{
+                                            display: 'block',
+                                            fontSize: '15px',
+                                            fontWeight: 500,
+                                            color: '#ccc',
+                                            padding: '12px 8px',
+                                            textDecoration: 'none',
+                                        }}
+                                    >
+                                        Sign In / Register
+                                    </Link>
+                                )}
+                            </div>
                         </motion.div>
                     </motion.div>
                 )}

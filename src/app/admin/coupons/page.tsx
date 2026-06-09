@@ -7,8 +7,8 @@ import {
 } from 'lucide-react';
 import {
     getAdminCoupons, createCoupon, updateCoupon, deleteCoupon,
-} from '@/lib/supabase/adminQueries';
-import type { AdminCoupon, CouponFormData } from '@/lib/supabase/adminQueries';
+} from '@/lib/db/adminQueries';
+import type { AdminCoupon, CouponFormData } from '@/lib/db/adminQueries';
 
 /* ===== Default form state ===== */
 const emptyForm: CouponFormData = {

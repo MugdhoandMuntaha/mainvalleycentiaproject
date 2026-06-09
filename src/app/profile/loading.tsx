@@ -1,5 +1,5 @@
-import LoadingSpinner from '@/components/LoadingSpinner';
+import { ProfilePageSkeleton } from '@/components/Skeletons';
 
 export default function ProfileLoading() {
-    return <LoadingSpinner message="Loading your profile..." />;
+    return <ProfilePageSkeleton />;
 }

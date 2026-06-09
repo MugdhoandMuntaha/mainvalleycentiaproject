@@ -30,7 +30,7 @@ export default function ProductCarouselSection({
     const scrollRef = useRef<HTMLDivElement>(null);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(true);
-    const [addedIds, setAddedIds] = useState<Set<number>>(new Set());
+    const [addedIds, setAddedIds] = useState<Set<string | number>>(new Set());
 
     /* guards */
     if (!products || products.length === 0) return null;
@@ -434,9 +434,11 @@ export default function ProductCarouselSection({
                                         {/* Add to Cart */}
                                         <button
                                             className="card-add-btn"
+                                            disabled={product.inStock === false}
                                             onClick={(e) => {
                                                 e.preventDefault();
                                                 e.stopPropagation();
+                                                if (product.inStock === false) return;
                                                 addToCart({
                                                     id: String(product.id),
                                                     slug: product.slug,
@@ -460,8 +462,8 @@ export default function ProductCarouselSection({
                                                 alignItems: 'center',
                                                 justifyContent: 'center',
                                                 gap: '8px',
-                                                background: addedIds.has(product.id) ? '#1a1a1a' : '#f5c518',
-                                                color: addedIds.has(product.id) ? '#ffffff' : '#1a1a1a',
+                                                background: product.inStock === false ? '#e0e0e0' : (addedIds.has(product.id) ? '#1a1a1a' : '#f5c518'),
+                                                color: product.inStock === false ? '#888' : (addedIds.has(product.id) ? '#ffffff' : '#1a1a1a'),
                                                 border: 'none',
                                                 borderRadius: '8px',
                                                 padding: '11px 0',
@@ -469,11 +471,12 @@ export default function ProductCarouselSection({
                                                 fontSize: '13px',
                                                 fontWeight: 700,
                                                 letterSpacing: '0.5px',
-                                                cursor: 'pointer',
+                                                cursor: product.inStock === false ? 'not-allowed' : 'pointer',
                                                 transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                                                 textTransform: 'uppercase',
                                             }}
                                             onMouseEnter={(e) => {
+                                                if (product.inStock === false) return;
                                                 if (!addedIds.has(product.id)) {
                                                     e.currentTarget.style.background = '#e6b800';
                                                     e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
@@ -481,6 +484,7 @@ export default function ProductCarouselSection({
                                                 }
                                             }}
                                             onMouseLeave={(e) => {
+                                                if (product.inStock === false) return;
                                                 if (!addedIds.has(product.id)) {
                                                     e.currentTarget.style.background = '#f5c518';
                                                     e.currentTarget.style.transform = 'translateY(0) scale(1)';
@@ -488,7 +492,9 @@ export default function ProductCarouselSection({
                                                 }
                                             }}
                                         >
-                                            {addedIds.has(product.id) ? (
+                                            {product.inStock === false ? (
+                                                'OUT OF STOCK'
+                                            ) : addedIds.has(product.id) ? (
                                                 <><Check size={15} className="cart-added-check" /> ADDED!</>
                                             ) : (
                                                 <><ShoppingBag size={15} /> ADD TO CART</>

@@ -30,10 +30,11 @@ import {
     X,
     ZoomIn,
 } from 'lucide-react';
-import { getProductBySlug as fetchProduct, getRelatedProductsSimple, getProductReviews, submitReview, getSiteSetting, type ProductDetail as SupabaseProduct, type ProductCard, type Review } from '@/lib/supabase/queries';
+import { getProductPageData, getProductReviews, submitReview, type ProductDetail as SupabaseProduct, type ProductCard, type Review } from '@/lib/db/queries';
 import { useCart } from '@/lib/CartContext';
 import { useWishlist } from '@/lib/WishlistContext';
 import { useAuth } from '@/lib/AuthContext';
+import { ProductDetailSkeleton } from '@/components/Skeletons';
 
 /* ===== Local Display Types (matches existing UI) ===== */
 interface ProductDetail {
@@ -160,24 +161,33 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
         );
 
         Promise.race([
-            Promise.all([
-                fetchProduct(slug),
-                getRelatedProductsSimple(slug, 4),
-                getSiteSetting('free_shipping_threshold'),
-            ]),
+            getProductPageData(slug),
             timeout,
-        ]).then((results) => {
+        ]).then((result) => {
             if (cancelled) return;
-            const [dbProduct, dbRelated, threshold] = results as [Awaited<ReturnType<typeof fetchProduct>>, Awaited<ReturnType<typeof getRelatedProductsSimple>>, { amount?: number } | null];
+            if (!result) return;
+
+            const { product: dbProduct, related: dbRelated, threshold } = result as {
+                product: any;
+                related: any;
+                threshold: any;
+            };
+
             if (dbProduct) {
                 setProduct(mapSupabaseToDisplay(dbProduct));
             } else {
                 setProduct(null);
             }
             setRelated((dbRelated || []).map(mapCardToDisplay));
-            if (threshold?.amount) setFreeShippingThreshold(threshold.amount);
+            
+            if (typeof threshold === 'number') {
+                setFreeShippingThreshold(threshold);
+            } else if (threshold && typeof (threshold as any).amount === 'number') {
+                setFreeShippingThreshold((threshold as any).amount);
+            }
             setLoading(false);
-        }).catch(() => {
+        }).catch((err) => {
+            console.error('Error loading product page data:', err);
             if (cancelled) return;
             setProduct(null);
             setLoading(false);
@@ -187,20 +197,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ slug: 
     }, [slug]);
 
     if (loading) {
-        return (
-            <div style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                minHeight: '60vh', background: '#ffffff', fontFamily: "'Inter', sans-serif",
-            }}>
-                <div style={{
-                    width: '40px', height: '40px', border: '3px solid #f0f0f0',
-                    borderTopColor: '#c9a96e', borderRadius: '50%',
-                    animation: 'spin 0.8s linear infinite',
-                }} />
-                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-                <p style={{ color: '#888', marginTop: '16px', fontSize: '14px' }}>Loading product...</p>
-            </div>
-        );
+        return <ProductDetailSkeleton />;
     }
 
     if (!product) {
@@ -313,255 +310,255 @@ function ImageGallery({ images, title, badges }: { images: string[]; title: stri
 
     return (
         <>
-        <motion.div
-            initial={{ opacity: 0, x: -30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, ease: 'easeOut' }}
-            className="pdp-gallery"
-            style={{ position: 'sticky', top: '80px', display: 'flex', gap: '10px' }}
-        >
-            {/* Thumbnails — vertical strip on left */}
-            <div className="pdp-thumbnails" style={{ display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
-                {images.map((img, idx) => (
-                    <button
-                        key={idx}
-                        onClick={() => setActiveIndex(idx)}
-                        style={{
-                            width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden',
-                            border: idx === activeIndex ? '2px solid #2e7d32' : '1.5px solid #eee',
-                            cursor: 'pointer', position: 'relative', background: '#f8f6f3',
-                            transition: 'all 0.25s ease', padding: 0,
-                            opacity: idx === activeIndex ? 1 : 0.65,
-                            transform: idx === activeIndex ? 'scale(1.02)' : 'scale(1)',
-                        }}
-                        onMouseEnter={(e) => { if (idx !== activeIndex) e.currentTarget.style.opacity = '0.85'; }}
-                        onMouseLeave={(e) => { if (idx !== activeIndex) e.currentTarget.style.opacity = '0.65'; }}
-                    >
-                        <Image
-                            src={img}
-                            alt={`${title} thumbnail ${idx + 1}`}
-                            fill
-                            sizes="60px"
-                            style={{ objectFit: 'cover' }}
-                        />
-                    </button>
-                ))}
-            </div>
-
-            {/* Main Image */}
-            <div
-                className="pdp-main-image"
-                onClick={() => openLightbox(activeIndex)}
-                style={{
-                    position: 'relative', height: 'calc(100vh - 190px)', width: '500px', borderRadius: '16px',
-                    overflow: 'hidden', background: '#f8f6f3',
-                    border: '1px solid #f0f0f0', cursor: 'zoom-in',
-                }}
+            <motion.div
+                initial={{ opacity: 0, x: -30 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.6, ease: 'easeOut' }}
+                className="pdp-gallery"
+                style={{ position: 'sticky', top: '80px', display: 'flex', gap: '10px' }}
             >
-                <AnimatePresence mode="wait">
-                    <motion.div
-                        key={activeIndex}
-                        initial={{ opacity: 0, scale: 1.02 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.98 }}
-                        transition={{ duration: 0.3 }}
-                        style={{ position: 'absolute', inset: 0 }}
-                    >
-                        <Image
-                            src={images[activeIndex]}
-                            alt={title}
-                            fill
-                            sizes="(max-width: 768px) 100vw, 45vw"
-                            style={{ objectFit: 'cover' }}
-                            priority
-                        />
-                    </motion.div>
-                </AnimatePresence>
-
-                {/* Zoom hint */}
-                <div style={{
-                    position: 'absolute', bottom: '14px', right: '14px', zIndex: 2,
-                    background: 'rgba(0,0,0,0.55)', borderRadius: '8px',
-                    padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '5px',
-                    backdropFilter: 'blur(4px)',
-                }}>
-                    <ZoomIn size={14} color="#fff" />
-                    <span style={{ fontSize: '11px', color: '#fff', fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>Click to zoom</span>
+                {/* Thumbnails — vertical strip on left */}
+                <div className="pdp-thumbnails" style={{ display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
+                    {images.map((img, idx) => (
+                        <button
+                            key={idx}
+                            onClick={() => setActiveIndex(idx)}
+                            style={{
+                                width: '60px', height: '60px', borderRadius: '8px', overflow: 'hidden',
+                                border: idx === activeIndex ? '2px solid #2e7d32' : '1.5px solid #eee',
+                                cursor: 'pointer', position: 'relative', background: '#f8f6f3',
+                                transition: 'all 0.25s ease', padding: 0,
+                                opacity: idx === activeIndex ? 1 : 0.65,
+                                transform: idx === activeIndex ? 'scale(1.02)' : 'scale(1)',
+                            }}
+                            onMouseEnter={(e) => { if (idx !== activeIndex) e.currentTarget.style.opacity = '0.85'; }}
+                            onMouseLeave={(e) => { if (idx !== activeIndex) e.currentTarget.style.opacity = '0.65'; }}
+                        >
+                            <Image
+                                src={img}
+                                alt={`${title} thumbnail ${idx + 1}`}
+                                fill
+                                sizes="60px"
+                                style={{ objectFit: 'cover' }}
+                            />
+                        </button>
+                    ))}
                 </div>
 
-                {/* Badges */}
-                {badges.length > 0 && (
-                    <div style={{ position: 'absolute', top: '14px', left: '14px', display: 'flex', flexDirection: 'column', gap: '6px', zIndex: 2 }}>
-                        {badges.map((b, i) => {
-                            const bg = b.color || '#f0c14b';
-                            const isLight = isLightColor(bg);
-                            return (
-                                <span key={i} style={{
-                                    background: bg,
-                                    color: isLight ? '#1a1a1a' : '#ffffff',
-                                    fontSize: '11px', fontWeight: 700, padding: '5px 14px',
-                                    borderRadius: '6px', fontFamily: "'Inter', sans-serif",
-                                    boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-                                    letterSpacing: '0.3px',
-                                }}>
-                                    {b.text}
-                                </span>
-                            );
-                        })}
-                    </div>
-                )}
-
-
-
-            </div>
-        </motion.div>
-
-        {/* ===== Lightbox Modal ===== */}
-        <AnimatePresence>
-            {showLightbox && (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.25 }}
-                    onClick={closeLightbox}
+                {/* Main Image */}
+                <div
+                    className="pdp-main-image"
+                    onClick={() => openLightbox(activeIndex)}
                     style={{
-                        position: 'fixed', inset: 0, zIndex: 9999,
-                        background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(12px)',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                        fontFamily: "'Inter', sans-serif",
+                        position: 'relative', height: 'calc(100vh - 190px)', width: '500px', borderRadius: '16px',
+                        overflow: 'hidden', background: '#f8f6f3',
+                        border: '1px solid #f0f0f0', cursor: 'zoom-in',
                     }}
                 >
-                    {/* Close Button */}
-                    <button
-                        onClick={closeLightbox}
-                        style={{
-                            position: 'absolute', top: '20px', right: '24px', zIndex: 10,
-                            background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
-                            borderRadius: '50%', width: '44px', height: '44px',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: 'pointer', transition: 'all 0.2s', backdropFilter: 'blur(4px)',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
-                    >
-                        <X size={20} color="#fff" />
-                    </button>
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={activeIndex}
+                            initial={{ opacity: 0, scale: 1.02 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.98 }}
+                            transition={{ duration: 0.3 }}
+                            style={{ position: 'absolute', inset: 0 }}
+                        >
+                            <Image
+                                src={images[activeIndex]}
+                                alt={title}
+                                fill
+                                sizes="(max-width: 768px) 100vw, 45vw"
+                                style={{ objectFit: 'cover' }}
+                                priority
+                            />
+                        </motion.div>
+                    </AnimatePresence>
 
-                    {/* Image Counter */}
+                    {/* Zoom hint */}
                     <div style={{
-                        position: 'absolute', top: '28px', left: '50%', transform: 'translateX(-50%)',
-                        color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600,
-                        letterSpacing: '1px',
+                        position: 'absolute', bottom: '14px', right: '14px', zIndex: 2,
+                        background: 'rgba(0,0,0,0.55)', borderRadius: '8px',
+                        padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '5px',
+                        backdropFilter: 'blur(4px)',
                     }}>
-                        {lightboxIndex + 1} / {images.length}
+                        <ZoomIn size={14} color="#fff" />
+                        <span style={{ fontSize: '11px', color: '#fff', fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>Click to zoom</span>
                     </div>
 
-                    {/* Nav Arrows */}
-                    {images.length > 1 && (
-                        <>
-                            <button
-                                onClick={e => { e.stopPropagation(); goPrev(); }}
-                                style={{
-                                    position: 'absolute', left: '20px', top: '50%', transform: 'translateY(-50%)',
-                                    background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
-                                    borderRadius: '50%', width: '48px', height: '48px',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    cursor: 'pointer', transition: 'all 0.2s', backdropFilter: 'blur(4px)',
-                                    zIndex: 10,
-                                }}
-                                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.18)'; e.currentTarget.style.transform = 'translateY(-50%) scale(1.08)'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.transform = 'translateY(-50%) scale(1)'; }}
-                            >
-                                <ChevronLeft size={22} color="#fff" />
-                            </button>
-                            <button
-                                onClick={e => { e.stopPropagation(); goNext(); }}
-                                style={{
-                                    position: 'absolute', right: '20px', top: '50%', transform: 'translateY(-50%)',
-                                    background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
-                                    borderRadius: '50%', width: '48px', height: '48px',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    cursor: 'pointer', transition: 'all 0.2s', backdropFilter: 'blur(4px)',
-                                    zIndex: 10,
-                                }}
-                                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.18)'; e.currentTarget.style.transform = 'translateY(-50%) scale(1.08)'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.transform = 'translateY(-50%) scale(1)'; }}
-                            >
-                                <ChevronRight size={22} color="#fff" />
-                            </button>
-                        </>
-                    )}
-
-                    {/* Main Lightbox Image */}
-                    <motion.div
-                        key={lightboxIndex}
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.3, ease: 'easeOut' }}
-                        onClick={e => e.stopPropagation()}
-                        style={{
-                            position: 'relative',
-                            width: 'min(85vw, 800px)',
-                            height: 'min(75vh, 800px)',
-                            borderRadius: '16px',
-                            overflow: 'hidden',
-                            boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-                        }}
-                    >
-                        <Image
-                            src={images[lightboxIndex]}
-                            alt={`${title} - Image ${lightboxIndex + 1}`}
-                            fill
-                            sizes="85vw"
-                            style={{ objectFit: 'contain', background: '#0a0a0a' }}
-                            priority
-                        />
-                    </motion.div>
-
-                    {/* Thumbnail Strip */}
-                    {images.length > 1 && (
-                        <div
-                            onClick={e => e.stopPropagation()}
-                            style={{
-                                display: 'flex', gap: '8px', marginTop: '20px',
-                                padding: '8px 16px', borderRadius: '12px',
-                                background: 'rgba(255,255,255,0.06)',
-                                backdropFilter: 'blur(8px)',
-                                border: '1px solid rgba(255,255,255,0.08)',
-                            }}
-                        >
-                            {images.map((img, idx) => (
-                                <button
-                                    key={idx}
-                                    onClick={() => setLightboxIndex(idx)}
-                                    style={{
-                                        width: '52px', height: '52px', borderRadius: '8px',
-                                        overflow: 'hidden', position: 'relative',
-                                        border: idx === lightboxIndex ? '2px solid #f5c518' : '2px solid transparent',
-                                        opacity: idx === lightboxIndex ? 1 : 0.5,
-                                        cursor: 'pointer', padding: 0,
-                                        transition: 'all 0.2s ease',
-                                        transform: idx === lightboxIndex ? 'scale(1.05)' : 'scale(1)',
-                                    }}
-                                    onMouseEnter={e => { if (idx !== lightboxIndex) e.currentTarget.style.opacity = '0.8'; }}
-                                    onMouseLeave={e => { if (idx !== lightboxIndex) e.currentTarget.style.opacity = '0.5'; }}
-                                >
-                                    <Image
-                                        src={img}
-                                        alt={`${title} thumb ${idx + 1}`}
-                                        fill
-                                        sizes="52px"
-                                        style={{ objectFit: 'cover' }}
-                                    />
-                                </button>
-                            ))}
+                    {/* Badges */}
+                    {badges.length > 0 && (
+                        <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', gap: '6px', zIndex: 2 }}>
+                            {badges.map((b, i) => {
+                                const bg = b.color || '#f0c14b';
+                                const isLight = isLightColor(bg);
+                                return (
+                                    <span key={i} style={{
+                                        background: bg,
+                                        color: isLight ? '#fff' : '#ffffff',
+                                        fontSize: '11px', fontWeight: 700, padding: '5px 14px',
+                                        borderRadius: '6px', fontFamily: "'Inter', sans-serif",
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                                        letterSpacing: '0.3px',
+                                    }}>
+                                        {b.text}
+                                    </span>
+                                );
+                            })}
                         </div>
                     )}
-                </motion.div>
-            )}
-        </AnimatePresence>
+
+
+
+                </div>
+            </motion.div>
+
+            {/* ===== Lightbox Modal ===== */}
+            <AnimatePresence>
+                {showLightbox && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.25 }}
+                        onClick={closeLightbox}
+                        style={{
+                            position: 'fixed', inset: 0, zIndex: 9999,
+                            background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(12px)',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                            fontFamily: "'Inter', sans-serif",
+                        }}
+                    >
+                        {/* Close Button */}
+                        <button
+                            onClick={closeLightbox}
+                            style={{
+                                position: 'absolute', top: '20px', right: '24px', zIndex: 10,
+                                background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
+                                borderRadius: '50%', width: '44px', height: '44px',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'pointer', transition: 'all 0.2s', backdropFilter: 'blur(4px)',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+                        >
+                            <X size={20} color="#fff" />
+                        </button>
+
+                        {/* Image Counter */}
+                        <div style={{
+                            position: 'absolute', top: '28px', left: '50%', transform: 'translateX(-50%)',
+                            color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: 600,
+                            letterSpacing: '1px',
+                        }}>
+                            {lightboxIndex + 1} / {images.length}
+                        </div>
+
+                        {/* Nav Arrows */}
+                        {images.length > 1 && (
+                            <>
+                                <button
+                                    onClick={e => { e.stopPropagation(); goPrev(); }}
+                                    style={{
+                                        position: 'absolute', left: '20px', top: '50%', transform: 'translateY(-50%)',
+                                        background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
+                                        borderRadius: '50%', width: '48px', height: '48px',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        cursor: 'pointer', transition: 'all 0.2s', backdropFilter: 'blur(4px)',
+                                        zIndex: 10,
+                                    }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.18)'; e.currentTarget.style.transform = 'translateY(-50%) scale(1.08)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.transform = 'translateY(-50%) scale(1)'; }}
+                                >
+                                    <ChevronLeft size={22} color="#fff" />
+                                </button>
+                                <button
+                                    onClick={e => { e.stopPropagation(); goNext(); }}
+                                    style={{
+                                        position: 'absolute', right: '20px', top: '50%', transform: 'translateY(-50%)',
+                                        background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
+                                        borderRadius: '50%', width: '48px', height: '48px',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        cursor: 'pointer', transition: 'all 0.2s', backdropFilter: 'blur(4px)',
+                                        zIndex: 10,
+                                    }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.18)'; e.currentTarget.style.transform = 'translateY(-50%) scale(1.08)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.transform = 'translateY(-50%) scale(1)'; }}
+                                >
+                                    <ChevronRight size={22} color="#fff" />
+                                </button>
+                            </>
+                        )}
+
+                        {/* Main Lightbox Image */}
+                        <motion.div
+                            key={lightboxIndex}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.3, ease: 'easeOut' }}
+                            onClick={e => e.stopPropagation()}
+                            style={{
+                                position: 'relative',
+                                width: 'min(85vw, 800px)',
+                                height: 'min(75vh, 800px)',
+                                borderRadius: '16px',
+                                overflow: 'hidden',
+                                boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+                            }}
+                        >
+                            <Image
+                                src={images[lightboxIndex]}
+                                alt={`${title} - Image ${lightboxIndex + 1}`}
+                                fill
+                                sizes="85vw"
+                                style={{ objectFit: 'contain', background: '#0a0a0a' }}
+                                priority
+                            />
+                        </motion.div>
+
+                        {/* Thumbnail Strip */}
+                        {images.length > 1 && (
+                            <div
+                                onClick={e => e.stopPropagation()}
+                                style={{
+                                    display: 'flex', gap: '8px', marginTop: '20px',
+                                    padding: '8px 16px', borderRadius: '12px',
+                                    background: 'rgba(255,255,255,0.06)',
+                                    backdropFilter: 'blur(8px)',
+                                    border: '1px solid rgba(255,255,255,0.08)',
+                                }}
+                            >
+                                {images.map((img, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => setLightboxIndex(idx)}
+                                        style={{
+                                            width: '52px', height: '52px', borderRadius: '8px',
+                                            overflow: 'hidden', position: 'relative',
+                                            border: idx === lightboxIndex ? '2px solid #f5c518' : '2px solid transparent',
+                                            opacity: idx === lightboxIndex ? 1 : 0.5,
+                                            cursor: 'pointer', padding: 0,
+                                            transition: 'all 0.2s ease',
+                                            transform: idx === lightboxIndex ? 'scale(1.05)' : 'scale(1)',
+                                        }}
+                                        onMouseEnter={e => { if (idx !== lightboxIndex) e.currentTarget.style.opacity = '0.8'; }}
+                                        onMouseLeave={e => { if (idx !== lightboxIndex) e.currentTarget.style.opacity = '0.5'; }}
+                                    >
+                                        <Image
+                                            src={img}
+                                            alt={`${title} thumb ${idx + 1}`}
+                                            fill
+                                            sizes="52px"
+                                            style={{ objectFit: 'cover' }}
+                                        />
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </>
     );
 }
@@ -580,6 +577,7 @@ function ProductInfo({ product, freeShippingThreshold }: { product: ProductDetai
     const currentSize = product.sizes[selectedSizeIdx] || product.sizes[0];
 
     const handleAddToCart = () => {
+        if (!product.inStock) return;
         addToCart({
             id: String(product.id),
             slug: product.slug,
@@ -592,7 +590,14 @@ function ProductInfo({ product, freeShippingThreshold }: { product: ProductDetai
         setShowAdded(true);
     };
 
-    const handleBuyNow = () => {
+    const handleBuyNow = (e: React.MouseEvent<HTMLButtonElement>) => {
+        if (!product.inStock) return;
+        const btn = e.currentTarget;
+        if (btn) {
+            btn.style.background = '#1a1a1a';
+            btn.style.color = '#fff';
+            btn.style.transform = 'translateY(0)';
+        }
         addToCart({
             id: String(product.id),
             slug: product.slug,
@@ -669,7 +674,7 @@ function ProductInfo({ product, freeShippingThreshold }: { product: ProductDetai
             {/* Price Section */}
             <div style={{ marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '28px', fontWeight: 700, color: '#1a1a1a', fontFamily: "'Inter', sans-serif", lineHeight: 1 }}>
+                    <span style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', fontFamily: "'Inter', sans-serif", lineHeight: 1 }}>
                         ৳{currentSize.price}
                     </span>
                     {(() => {
@@ -700,23 +705,23 @@ function ProductInfo({ product, freeShippingThreshold }: { product: ProductDetai
                 </div>
                 {/* Coupon — only shown if a coupon is assigned */}
                 {product.couponCode && product.couponPrice && (
-                <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '6px',
-                    background: 'linear-gradient(135deg, #e8f5e9, #f1f8e9)', padding: '5px 12px',
-                    borderRadius: '8px', border: '1px dashed #4caf50',
-                }}>
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#2e7d32' }}>
-                        ⭐ Get it for ৳{product.couponPrice} with code
-                    </span>
-                    <span style={{
-                        fontSize: '11px', fontWeight: 800, color: '#1a1a1a',
-                        background: '#ffc107', padding: '2px 7px', borderRadius: '4px',
+                    <div style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '6px',
+                        background: 'linear-gradient(135deg, #e8f5e9, #f1f8e9)', padding: '5px 12px',
+                        borderRadius: '8px', border: '1px dashed #4caf50',
                     }}>
-                        {product.couponCode}
-                    </span>
-                </div>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: '#2e7d32' }}>
+                            ⭐ Get it for ৳{product.couponPrice} with code
+                        </span>
+                        <span style={{
+                            fontSize: '11px', fontWeight: 800, color: '#1a1a1a',
+                            background: '#ffc107', padding: '2px 7px', borderRadius: '4px',
+                        }}>
+                            {product.couponCode}
+                        </span>
+                    </div>
                 )}
-                <p style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+                <p className="desktop-only" style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
                     Inclusive of all taxes. Free shipping on orders above ৳{freeShippingThreshold}.
                 </p>
             </div>
@@ -750,98 +755,138 @@ function ProductInfo({ product, freeShippingThreshold }: { product: ProductDetai
                                 }
                             }}
                         >
-                            {size.label}{size.ml ? ` · ${size.ml}` : ''} — ৳{size.price}
+                            {size.label}{size.ml ? `  ${size.ml}` : ''} — ৳{size.price}
                         </button>
                     ))}
                 </div>
             </div>
 
             {/* Quantity + Wishlist Row */}
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch', marginBottom: '10px' }}>
-                {/* Quantity Selector */}
-                <div style={{
-                    display: 'flex', alignItems: 'center', gap: '0',
-                    border: '2px solid #e0e0e0', borderRadius: '10px', overflow: 'hidden',
-                }}>
-                    <button onClick={() => setQuantity(Math.max(1, quantity - 1))} style={{
-                        width: '38px', height: '40px', border: 'none', background: '#fafafa',
-                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        transition: 'background 0.15s',
-                    }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#f0f0f0'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = '#fafafa'}
-                    >
-                        <Minus size={14} color="#555" />
-                    </button>
-                    <span style={{
-                        width: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '14px', fontWeight: 700, color: '#1a1a1a', background: '#fff',
+            {product.inStock && (
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch', marginBottom: '10px' }}>
+                    {/* Quantity Selector */}
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: '0',
+                        border: '2px solid #e0e0e0', borderRadius: '10px', overflow: 'hidden',
                     }}>
-                        {quantity}
-                    </span>
-                    <button onClick={() => setQuantity(Math.min(product.stockQuantity, quantity + 1))} style={{
-                        width: '38px', height: '40px', border: 'none', background: '#fafafa',
-                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        transition: 'background 0.15s',
-                    }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#f0f0f0'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = '#fafafa'}
+                        <button onClick={() => setQuantity(Math.max(1, quantity - 1))} style={{
+                            width: '38px', height: '40px', border: 'none', background: '#fafafa',
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            transition: 'background 0.15s',
+                        }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#f0f0f0'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = '#fafafa'}
+                        >
+                            <Minus size={14} color="#555" />
+                        </button>
+                        <span style={{
+                            width: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '14px', fontWeight: 700, color: '#1a1a1a', background: '#fff',
+                        }}>
+                            {quantity}
+                        </span>
+                        <button onClick={() => setQuantity(Math.min(product.stockQuantity, quantity + 1))} style={{
+                            width: '38px', height: '40px', border: 'none', background: '#fafafa',
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            transition: 'background 0.15s',
+                        }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#f0f0f0'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = '#fafafa'}
+                        >
+                            <Plus size={14} color="#555" />
+                        </button>
+                    </div>
+
+                    {/* Wishlist */}
+                    <button
+                        onClick={() => toggleWishlist(product.id)}
+                        style={{
+                            width: '44px', height: '44px', borderRadius: '10px', border: '2px solid #e0e0e0',
+                            background: wishlisted ? '#fef2f2' : '#fff', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.borderColor = '#ef4444'}
+                        onMouseLeave={(e) => e.currentTarget.style.borderColor = wishlisted ? '#ef4444' : '#e0e0e0'}
                     >
-                        <Plus size={14} color="#555" />
+                        <Heart size={18} fill={wishlisted ? '#ef4444' : 'none'} color={wishlisted ? '#ef4444' : '#888'} />
                     </button>
                 </div>
+            )}
 
-                {/* Wishlist */}
-                <button
-                    onClick={() => toggleWishlist(product.id)}
-                    style={{
-                        width: '44px', height: '44px', borderRadius: '10px', border: '2px solid #e0e0e0',
-                        background: wishlisted ? '#fef2f2' : '#fff', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        transition: 'all 0.2s',
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.borderColor = '#ef4444'}
-                    onMouseLeave={(e) => e.currentTarget.style.borderColor = wishlisted ? '#ef4444' : '#e0e0e0'}
-                >
-                    <Heart size={18} fill={wishlisted ? '#ef4444' : 'none'} color={wishlisted ? '#ef4444' : '#888'} />
-                </button>
-            </div>
-
-            {/* Add to Cart + Buy Now Row (50% each) */}
+            {/* Add to Cart + Buy Now Row */}
             <div className="pdp-action-buttons" style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
-                {/* Add to Cart */}
-                <button
-                    onClick={handleAddToCart}
-                    style={{
-                        width: '40%', padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                        background: showAdded ? '#2e7d32' : '#f5c518',
-                        color: showAdded ? '#fff' : '#1a1a1a',
-                        border: 'none', borderRadius: '10px',
-                        fontSize: '12px', fontWeight: 700, letterSpacing: '0.5px', cursor: 'pointer',
-                        transition: 'all 0.3s ease', textTransform: 'uppercase',
-                        fontFamily: "'Inter', sans-serif",
-                    }}
-                    onMouseEnter={(e) => { if (!showAdded) { e.currentTarget.style.background = '#e6b800'; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
-                    onMouseLeave={(e) => { if (!showAdded) { e.currentTarget.style.background = '#f5c518'; e.currentTarget.style.transform = 'translateY(0)'; } }}
-                >
-                    {showAdded ? <Check size={16} /> : <ShoppingBag size={16} />}
-                    {showAdded ? '✓ ADDED TO CART' : 'ADD TO CART'}
-                </button>
+                {product.inStock ? (
+                    <>
+                        {/* Add to Cart */}
+                        <button
+                            onClick={handleAddToCart}
+                            style={{
+                                width: '40%', padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                background: showAdded ? '#2e7d32' : '#f5c518',
+                                color: showAdded ? '#fff' : '#1a1a1a',
+                                border: 'none', borderRadius: '10px',
+                                fontSize: '12px', fontWeight: 700, letterSpacing: '0.5px', cursor: 'pointer',
+                                transition: 'all 0.3s ease', textTransform: 'uppercase',
+                                fontFamily: "'Inter', sans-serif",
+                            }}
+                            onMouseEnter={(e) => { if (!showAdded) { e.currentTarget.style.background = '#e6b800'; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
+                            onMouseLeave={(e) => { if (!showAdded) { e.currentTarget.style.background = '#f5c518'; e.currentTarget.style.transform = 'translateY(0)'; } }}
+                        >
+                            {showAdded ? <Check size={16} /> : <ShoppingBag size={16} />}
+                            {showAdded ? '✓ ADDED TO CART' : 'ADD TO CART'}
+                        </button>
 
-                {/* Buy Now */}
-                <button
-                    onClick={handleBuyNow}
-                    style={{
-                        width: '40%', padding: '8px', background: '#1a1a1a', color: '#fff',
-                        border: '2px solid #1a1a1a', borderRadius: '10px', fontSize: '12px', fontWeight: 700,
-                        letterSpacing: '0.5px', cursor: 'pointer', transition: 'all 0.3s ease',
-                        textTransform: 'uppercase', fontFamily: "'Inter', sans-serif",
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#1a1a1a'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = '#1a1a1a'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.transform = 'translateY(0)'; }}
-                >
-                    BUY NOW
-                </button>
+                        {/* Buy Now */}
+                        <button
+                            onClick={handleBuyNow}
+                            style={{
+                                width: '40%', padding: '8px', background: '#1a1a1a', color: '#fff',
+                                border: '2px solid #1a1a1a', borderRadius: '10px', fontSize: '12px', fontWeight: 700,
+                                letterSpacing: '0.5px', cursor: 'pointer', transition: 'all 0.3s ease',
+                                textTransform: 'uppercase', fontFamily: "'Inter', sans-serif",
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#1a1a1a'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = '#1a1a1a'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                        >
+                            BUY NOW
+                        </button>
+                    </>
+                ) : (
+                    /* Wishlist Button */
+                    <button
+                        onClick={() => toggleWishlist(product.id)}
+                        style={{
+                            width: '82%', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                            background: wishlisted ? '#fef2f2' : '#f5c518',
+                            color: wishlisted ? '#ef4444' : '#1a1a1a',
+                            border: wishlisted ? '2px solid #ef4444' : 'none',
+                            borderRadius: '10px',
+                            fontSize: '12px', fontWeight: 700, letterSpacing: '0.5px', cursor: 'pointer',
+                            transition: 'all 0.3s ease', textTransform: 'uppercase',
+                            fontFamily: "'Inter', sans-serif",
+                        }}
+                        onMouseEnter={(e) => {
+                            if (!wishlisted) {
+                                e.currentTarget.style.background = '#e6b800';
+                                e.currentTarget.style.transform = 'translateY(-1px)';
+                            } else {
+                                e.currentTarget.style.background = '#ffebee';
+                            }
+                        }}
+                        onMouseLeave={(e) => {
+                            if (!wishlisted) {
+                                e.currentTarget.style.background = '#f5c518';
+                                e.currentTarget.style.transform = 'translateY(0)';
+                            } else {
+                                e.currentTarget.style.background = '#fef2f2';
+                            }
+                        }}
+                    >
+                        <Heart size={16} fill={wishlisted ? '#ef4444' : 'none'} color={wishlisted ? '#ef4444' : '#1a1a1a'} />
+                        {wishlisted ? 'REMOVE FROM WISHLIST' : 'ADD TO WISHLIST'}
+                    </button>
+                )}
             </div>
 
             {/* Highlights */}
@@ -935,6 +980,8 @@ function TabbedContent({ product }: { product: ProductDetail }) {
     const [reviewForm, setReviewForm] = useState({ rating: 5, title: '', body: '' });
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
+    const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+    const [uploading, setUploading] = useState(false);
 
     useEffect(() => {
         if (activeTab === 'reviews' && reviews.length === 0) {
@@ -946,6 +993,33 @@ function TabbedContent({ product }: { product: ProductDetail }) {
         }
     }, [activeTab, product.id, reviews.length]);
 
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setUploading(true);
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData,
+            });
+            const data = await res.json();
+            if (data.url) {
+                setUploadedImages(prev => [...prev, data.url]);
+            } else if (data.error) {
+                alert(data.error);
+            }
+        } catch (err) {
+            console.error('Error uploading image:', err);
+            alert('Upload failed');
+        } finally {
+            setUploading(false);
+        }
+    };
+
     const handleSubmitReview = async () => {
         if (!user?.id || reviewForm.rating < 1) return;
         setSubmitting(true);
@@ -955,11 +1029,35 @@ function TabbedContent({ product }: { product: ProductDetail }) {
             rating: reviewForm.rating,
             title: reviewForm.title,
             body: reviewForm.body,
+            images: uploadedImages.map((url, idx) => ({
+                url,
+                altText: 'Review Image',
+                sortOrder: idx
+            })),
         });
         setSubmitting(false);
         if (!error) {
             setSubmitted(true);
+            const newReview: Review = {
+                id: 'temp-' + Date.now(),
+                product_id: product.id,
+                user_id: user.id,
+                rating: reviewForm.rating,
+                title: reviewForm.title || null,
+                body: reviewForm.body || null,
+                is_verified: false,
+                helpful_count: 0,
+                created_at: new Date().toISOString(),
+                user_name: user.displayName || user.fullName || 'You',
+                images: uploadedImages.map((url, idx) => ({
+                    url,
+                    altText: 'Review Image',
+                    sortOrder: idx
+                }))
+            };
+            setReviews(prev => [newReview, ...prev]);
             setReviewForm({ rating: 5, title: '', body: '' });
+            setUploadedImages([]);
         }
     };
 
@@ -1118,6 +1216,7 @@ function TabbedContent({ product }: { product: ProductDetail }) {
                                                                 width: '100%', padding: '10px 14px', borderRadius: '10px',
                                                                 border: '1px solid #e0e0e0', fontSize: '14px', marginBottom: '10px',
                                                                 fontFamily: "'Inter', sans-serif", outline: 'none',
+                                                                color: '#000000',
                                                             }}
                                                         />
                                                         <textarea
@@ -1129,16 +1228,76 @@ function TabbedContent({ product }: { product: ProductDetail }) {
                                                                 width: '100%', padding: '10px 14px', borderRadius: '10px',
                                                                 border: '1px solid #e0e0e0', fontSize: '14px', marginBottom: '14px',
                                                                 fontFamily: "'Inter', sans-serif", outline: 'none', resize: 'vertical',
+                                                                color: '#000000',
                                                             }}
                                                         />
+
+                                                        {/* Upload images */}
+                                                        <div style={{ marginBottom: '14px' }}>
+                                                            <label style={{
+                                                                display: 'block', fontSize: '12px', fontWeight: 600,
+                                                                color: '#555', marginBottom: '6px',
+                                                            }}>
+                                                                Add Photos (Optional)
+                                                            </label>
+                                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                                                {uploadedImages.map((url, i) => (
+                                                                    <div key={i} style={{
+                                                                        position: 'relative', width: '60px', height: '60px',
+                                                                        borderRadius: '8px', overflow: 'hidden', border: '1px solid #e0e0e0',
+                                                                    }}>
+                                                                        <Image src={url} alt="Uploaded preview" fill style={{ objectFit: 'cover' }} />
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setUploadedImages(prev => prev.filter((_, idx) => idx !== i))}
+                                                                            style={{
+                                                                                position: 'absolute', top: '2px', right: '2px',
+                                                                                background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%',
+                                                                                width: '18px', height: '18px', display: 'flex', alignItems: 'center',
+                                                                                justifyContent: 'center', color: '#fff', cursor: 'pointer', fontSize: '10px',
+                                                                                lineHeight: 1, padding: 0,
+                                                                            }}
+                                                                        >
+                                                                            ✕
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                                {uploadedImages.length < 5 && (
+                                                                    <label style={{
+                                                                        width: '60px', height: '60px', borderRadius: '8px',
+                                                                        border: '2px dashed #ccc', display: 'flex', flexDirection: 'column',
+                                                                        alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                                                                        background: '#fff', transition: 'all 0.2s',
+                                                                    }}
+                                                                        onMouseEnter={(e) => e.currentTarget.style.borderColor = '#1a1a1a'}
+                                                                        onMouseLeave={(e) => e.currentTarget.style.borderColor = '#ccc'}
+                                                                    >
+                                                                        <span style={{ fontSize: '18px', color: '#666', fontWeight: 'bold', lineHeight: 1 }}>+</span>
+                                                                        <span style={{ fontSize: '9px', color: '#888' }}>Upload</span>
+                                                                        <input
+                                                                            type="file"
+                                                                            accept="image/*"
+                                                                            onChange={handleImageUpload}
+                                                                            style={{ display: 'none' }}
+                                                                        />
+                                                                    </label>
+                                                                )}
+                                                            </div>
+                                                            {uploading && (
+                                                                <span style={{ fontSize: '11px', color: '#666', marginTop: '4px', display: 'block' }}>
+                                                                    Uploading photo...
+                                                                </span>
+                                                            )}
+                                                        </div>
+
                                                         <button
                                                             onClick={handleSubmitReview}
-                                                            disabled={submitting}
+                                                            disabled={submitting || uploading}
                                                             style={{
                                                                 padding: '10px 24px', background: '#1a1a1a', color: '#fff',
                                                                 border: 'none', borderRadius: '10px', fontSize: '14px',
-                                                                fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer',
-                                                                opacity: submitting ? 0.6 : 1,
+                                                                fontWeight: 600, cursor: (submitting || uploading) ? 'not-allowed' : 'pointer',
+                                                                opacity: (submitting || uploading) ? 0.6 : 1,
                                                             }}
                                                         >
                                                             {submitting ? 'Submitting...' : 'Submit Review'}
@@ -1195,6 +1354,23 @@ function TabbedContent({ product }: { product: ProductDetail }) {
                                                                 fontSize: '14px', color: '#555', lineHeight: 1.6,
                                                                 marginBottom: '10px',
                                                             }}>{review.body}</p>
+                                                        )}
+                                                        {review.images && review.images.length > 0 && (
+                                                            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '10px', marginBottom: '14px' }}>
+                                                                {review.images.map((img, idx) => (
+                                                                    <div key={idx} style={{
+                                                                        position: 'relative', width: '80px', height: '80px',
+                                                                        borderRadius: '8px', overflow: 'hidden', border: '1px solid #e0e0e0',
+                                                                    }}>
+                                                                        <Image
+                                                                            src={img.url}
+                                                                            alt={img.altText || `Review Image ${idx + 1}`}
+                                                                            fill
+                                                                            style={{ objectFit: 'cover' }}
+                                                                        />
+                                                                    </div>
+                                                                ))}
+                                                            </div>
                                                         )}
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#999' }}>
                                                             <span style={{ fontWeight: 600, color: '#666' }}>{review.user_name}</span>
@@ -1282,6 +1458,7 @@ function RelatedProducts({ products }: { products: ProductDetail[] }) {
     }, [addedId]);
 
     const handleAdd = (product: ProductDetail) => {
+        if (!product.inStock) return;
         const defaultSize = product.sizes.find((s) => s.active) || product.sizes[0];
         addToCart({
             id: String(product.id),
@@ -1302,7 +1479,7 @@ function RelatedProducts({ products }: { products: ProductDetail[] }) {
                     fontFamily: "'Outfit', sans-serif", fontSize: '26px', fontWeight: 700,
                     color: '#1a1a1a', marginBottom: '8px',
                 }}>
-                    You May Also Like
+                    Complete your Basket
                 </h2>
                 <p style={{
                     fontFamily: "'Inter', sans-serif", fontSize: '14px', color: '#888',
@@ -1357,7 +1534,7 @@ function RelatedProducts({ products }: { products: ProductDetail[] }) {
                                                 const light = isLightColor(bg);
                                                 return (
                                                     <span style={{
-                                                        position: 'absolute', top: '12px', left: '12px',
+                                                        position: 'absolute',
                                                         background: bg,
                                                         color: light ? '#1a1a1a' : '#ffffff',
                                                         fontSize: '11px', fontWeight: 600, padding: '5px 12px',
@@ -1416,23 +1593,40 @@ function RelatedProducts({ products }: { products: ProductDetail[] }) {
                                     </Link>
                                     {/* Add to Cart button */}
                                     <div style={{ padding: '0 14px 14px' }}>
-                                        <button
-                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAdd(product); }}
-                                            style={{
-                                                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                                                background: isAdded ? '#2e7d32' : '#f5c518',
-                                                color: isAdded ? '#fff' : '#1a1a1a',
-                                                border: 'none', borderRadius: '8px', padding: '10px 0',
-                                                fontSize: '13px', fontWeight: 700, fontFamily: "'Inter', sans-serif",
-                                                cursor: 'pointer', transition: 'all 0.3s ease', letterSpacing: '0.5px',
-                                                marginTop: '6px',
-                                            }}
-                                            onMouseEnter={(e) => { if (!isAdded) e.currentTarget.style.background = '#e6b800'; }}
-                                            onMouseLeave={(e) => { if (!isAdded) e.currentTarget.style.background = '#f5c518'; }}
-                                        >
-                                            {isAdded ? <Check size={14} /> : <ShoppingBag size={14} />}
-                                            {isAdded ? '✓ ADDED' : 'ADD TO CART'}
-                                        </button>
+                                        {product.inStock ? (
+                                            <button
+                                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAdd(product); }}
+                                                style={{
+                                                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                                    background: isAdded ? '#2e7d32' : '#f5c518',
+                                                    color: isAdded ? '#fff' : '#1a1a1a',
+                                                    border: 'none', borderRadius: '8px', padding: '10px 0',
+                                                    fontSize: '13px', fontWeight: 700, fontFamily: "'Inter', sans-serif",
+                                                    cursor: 'pointer', transition: 'all 0.3s ease', letterSpacing: '0.5px',
+                                                    marginTop: '6px',
+                                                }}
+                                                onMouseEnter={(e) => { if (!isAdded) e.currentTarget.style.background = '#e6b800'; }}
+                                                onMouseLeave={(e) => { if (!isAdded) e.currentTarget.style.background = '#f5c518'; }}
+                                            >
+                                                {isAdded ? <Check size={14} /> : <ShoppingBag size={14} />}
+                                                {isAdded ? '✓ ADDED' : 'ADD TO CART'}
+                                            </button>
+                                        ) : (
+                                            <button
+                                                disabled
+                                                style={{
+                                                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                                    background: '#e0e0e0',
+                                                    color: '#888',
+                                                    border: 'none', borderRadius: '8px', padding: '10px 0',
+                                                    fontSize: '13px', fontWeight: 700, fontFamily: "'Inter', sans-serif",
+                                                    cursor: 'not-allowed',
+                                                    marginTop: '6px',
+                                                }}
+                                            >
+                                                OUT OF STOCK
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             </motion.div>

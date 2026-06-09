@@ -4,12 +4,13 @@ import React, { useEffect, useState, useMemo } from 'react';
 import Image from 'next/image';
 import {
     Plus, Search, Edit2, Trash2, Crown, TrendingUp,
-    EyeOff, X, Loader2,
+    EyeOff, X, Loader2, Upload,
 } from 'lucide-react';
+import { uploadFile } from '@/lib/upload';
 import {
     getAdminBrands, createBrand, updateBrand, deleteBrand,
-} from '@/lib/supabase/adminQueries';
-import type { AdminBrand, BrandFormData } from '@/lib/supabase/adminQueries';
+} from '@/lib/db/adminQueries';
+import type { AdminBrand, BrandFormData } from '@/lib/db/adminQueries';
 
 /* ===== Slug helper ===== */
 function toSlug(str: string) {
@@ -33,6 +34,7 @@ export default function AdminBrandsPage() {
     const [form, setForm] = useState<BrandFormData>({ ...emptyForm });
     const [saving, setSaving] = useState(false);
     const [formError, setFormError] = useState('');
+    const [uploadingLogo, setUploadingLogo] = useState(false);
     const [autoSlug, setAutoSlug] = useState(true);
 
     /* ===== Delete state ===== */
@@ -511,12 +513,52 @@ export default function AdminBrandsPage() {
                             {/* Logo URL */}
                             <div>
                                 <label style={labelStyle}>Logo URL</label>
-                                <input
-                                    value={form.logo_url}
-                                    onChange={e => setField('logo_url', e.target.value)}
-                                    placeholder="https://..."
-                                    style={inputStyle}
-                                />
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    <input
+                                        value={form.logo_url}
+                                        onChange={e => setField('logo_url', e.target.value)}
+                                        placeholder="https://..."
+                                        style={{ ...inputStyle, flex: 1 }}
+                                    />
+                                    <label style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        padding: '10px 14px',
+                                        background: 'var(--color-bg-secondary)',
+                                        border: '1px solid var(--color-border)',
+                                        borderRadius: 'var(--radius-md)',
+                                        color: 'var(--color-text-secondary)',
+                                        cursor: uploadingLogo ? 'not-allowed' : 'pointer',
+                                        fontSize: 13,
+                                        fontWeight: 500,
+                                        transition: 'all var(--transition-fast)',
+                                        opacity: uploadingLogo ? 0.7 : 1,
+                                        whiteSpace: 'nowrap',
+                                    }}>
+                                        <Upload size={14} />
+                                        {uploadingLogo ? '...' : 'Upload'}
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            disabled={uploadingLogo}
+                                            style={{ display: 'none' }}
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                setUploadingLogo(true);
+                                                try {
+                                                    const url = await uploadFile(file);
+                                                    setField('logo_url', url);
+                                                } catch (err: any) {
+                                                    alert(err.message || 'Upload failed');
+                                                } finally {
+                                                    setUploadingLogo(false);
+                                                }
+                                            }}
+                                        />
+                                    </label>
+                                </div>
                                 {form.logo_url && (
                                     <div style={{
                                         marginTop: 8, width: 48, height: 48, borderRadius: 'var(--radius-sm)',

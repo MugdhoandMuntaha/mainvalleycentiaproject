@@ -20,7 +20,8 @@ import {
     Check,
 } from 'lucide-react';
 import { useCart } from '@/lib/CartContext';
-import { getProductCards, getSiteSetting, getActiveCoupons, type ProductCard as ProductCardType, type Coupon } from '@/lib/supabase/queries';
+import { CartPageSkeleton } from '@/components/Skeletons';
+import { getProductCards, getSiteSetting, getActiveCoupons, type ProductCard as ProductCardType, type Coupon } from '@/lib/db/queries';
 
 export default function CartPage() {
     const { items, updateQuantity, removeFromCart, clearCart, totalItems, totalPrice, addToCart, isHydrated } = useCart();
@@ -80,7 +81,7 @@ export default function CartPage() {
 
     // Prevent rendering before hydration to avoid flashing the empty state
     if (!isHydrated) {
-        return <div style={{ minHeight: '65vh', background: '#f8f8f5' }} />;
+        return <CartPageSkeleton />;
     }
 
     /* ===== Empty Cart ===== */
@@ -279,14 +280,24 @@ export default function CartPage() {
                                         )}
 
                                         {/* Price */}
-                                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '14px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                                             <span style={{ fontSize: '18px', fontWeight: 800, color: '#1a1a1a' }}>
                                                 ৳{item.price}
                                             </span>
                                             {item.originalPrice && item.originalPrice > item.price && (
-                                                <span style={{ fontSize: '13px', color: '#bbb', textDecoration: 'line-through' }}>
-                                                    ৳{item.originalPrice}
-                                                </span>
+                                                <>
+                                                    <span style={{ fontSize: '13px', color: '#bbb', textDecoration: 'line-through' }}>
+                                                        ৳{item.originalPrice}
+                                                    </span>
+                                                    {(() => {
+                                                        const discountPct = Math.ceil(((item.originalPrice - item.price) / item.originalPrice) * 100);
+                                                        return discountPct > 0 ? (
+                                                            <span style={{ fontSize: '12px', fontWeight: 700, color: '#0d6b3d' }}>
+                                                                {discountPct}% OFF
+                                                            </span>
+                                                        ) : null;
+                                                    })()}
+                                                </>
                                             )}
                                         </div>
 

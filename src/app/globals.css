@@ -284,6 +284,10 @@ a {
 }
 
 @media (max-width: 768px) {
+  .desktop-only {
+    display: none !important;
+  }
+
   .desktop-nav {
     display: none !important;
   }
@@ -1102,4 +1106,26 @@ a {
   #printable-invoice > * {
     break-inside: avoid;
   }
+}
+
+/* ===== Shimmer Skeleton Loading utility ===== */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #f7f7f7 50%, #f0f0f0 75%) !important;
+  background-size: 200% 100% !important;
+  animation: shimmer 1.5s infinite linear !important;
+}
+
+.shimmer-dark {
+  background: linear-gradient(90deg, #1a1a1d 25%, #252529 50%, #1a1a1d 75%) !important;
+  background-size: 200% 100% !important;
+  animation: shimmer 1.5s infinite linear !important;
 }

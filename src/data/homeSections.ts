@@ -1,7 +1,7 @@
 /* ─── Shared product type for all carousel sections ─── */
 
 export interface SectionProduct {
-    id: number;
+    id: string | number;
     slug: string;
     image: string;
     title: string;
@@ -16,6 +16,7 @@ export interface SectionProduct {
     badge?: string;
     badgeColor?: string;
     extraBadge?: string;
+    inStock?: boolean;
 }
 
 /* ═══════════════════════════════════════════════════════

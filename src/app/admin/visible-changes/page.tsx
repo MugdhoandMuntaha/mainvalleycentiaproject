@@ -4,14 +4,14 @@ import React, { useEffect, useState, useMemo } from 'react';
 import Image from 'next/image';
 import {
     Plus, Search, Edit2, Trash2, SplitSquareVertical, TrendingUp,
-    EyeOff, X, Loader2,
+    EyeOff, X, Loader2, Upload,
 } from 'lucide-react';
+import { uploadFile } from '@/lib/upload';
 import {
     getAdminVisibleChanges, createVisibleChange, updateVisibleChange, deleteVisibleChange,
-    getBrandsAndCategories,
-} from '@/lib/supabase/adminQueries';
-import type { AdminVisibleChange, VisibleChangeFormData } from '@/lib/supabase/adminQueries';
-import { createClient } from '@/lib/supabase/client';
+    getActiveProductsSimple,
+} from '@/lib/db/adminQueries';
+import type { AdminVisibleChange, VisibleChangeFormData } from '@/lib/db/adminQueries';
 
 const emptyForm: VisibleChangeFormData = {
     product_id: null, before_image: '', after_image: '',
@@ -31,6 +31,8 @@ export default function AdminVisibleChangesPage() {
     const [form, setForm] = useState<VisibleChangeFormData>({ ...emptyForm });
     const [saving, setSaving] = useState(false);
     const [formError, setFormError] = useState('');
+    const [uploadingBeforeImage, setUploadingBeforeImage] = useState(false);
+    const [uploadingAfterImage, setUploadingAfterImage] = useState(false);
 
     const [deleteTarget, setDeleteTarget] = useState<AdminVisibleChange | null>(null);
     const [deleting, setDeleting] = useState(false);
@@ -39,16 +41,16 @@ export default function AdminVisibleChangesPage() {
 
     async function loadData() {
         setLoading(true);
-        const [data, prodRes] = await Promise.all([
-            getAdminVisibleChanges(),
-            (async () => {
-                const supabase = createClient();
-                const { data } = await supabase.from('products').select('id, name, slug').eq('is_active', true).order('name');
-                return (data || []) as ProductOption[];
-            })(),
-        ]);
-        setItems(data);
-        setProducts(prodRes);
+        try {
+            const [data, prodRes] = await Promise.all([
+                getAdminVisibleChanges(),
+                getActiveProductsSimple(),
+            ]);
+            setItems(data);
+            setProducts(prodRes);
+        } catch (err) {
+            console.error("Failed to load visible changes data", err);
+        }
         setLoading(false);
     }
 
@@ -293,8 +295,53 @@ export default function AdminVisibleChangesPage() {
                             {/* Before Image */}
                             <div>
                                 <label style={labelStyle}>Before Image URL *</label>
-                                <input value={form.before_image} onChange={e => setField('before_image', e.target.value)} placeholder="https://..." style={inputStyle} />
-                                {form.before_image && form.before_image.startsWith('http') && (
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    <input
+                                        value={form.before_image}
+                                        onChange={e => setField('before_image', e.target.value)}
+                                        placeholder="https://..."
+                                        style={{ ...inputStyle, flex: 1 }}
+                                    />
+                                    <label style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        padding: '10px 14px',
+                                        background: 'var(--color-bg-secondary)',
+                                        border: '1px solid var(--color-border)',
+                                        borderRadius: 'var(--radius-md)',
+                                        color: 'var(--color-text-secondary)',
+                                        cursor: uploadingBeforeImage ? 'not-allowed' : 'pointer',
+                                        fontSize: 13,
+                                        fontWeight: 500,
+                                        transition: 'all var(--transition-fast)',
+                                        opacity: uploadingBeforeImage ? 0.7 : 1,
+                                        whiteSpace: 'nowrap',
+                                    }}>
+                                        <Upload size={14} />
+                                        {uploadingBeforeImage ? '...' : 'Upload'}
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            disabled={uploadingBeforeImage}
+                                            style={{ display: 'none' }}
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                setUploadingBeforeImage(true);
+                                                try {
+                                                    const url = await uploadFile(file);
+                                                    setField('before_image', url);
+                                                } catch (err: any) {
+                                                    alert(err.message || 'Upload failed');
+                                                } finally {
+                                                    setUploadingBeforeImage(false);
+                                                }
+                                            }}
+                                        />
+                                    </label>
+                                </div>
+                                {form.before_image && (
                                     <div style={{ marginTop: 8, width: 80, height: 60, borderRadius: 'var(--radius-sm)', overflow: 'hidden', background: 'var(--color-bg-tertiary)', position: 'relative' }}>
                                         <img src={form.before_image} alt="Before preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                     </div>
@@ -304,8 +351,53 @@ export default function AdminVisibleChangesPage() {
                             {/* After Image */}
                             <div>
                                 <label style={labelStyle}>After Image URL *</label>
-                                <input value={form.after_image} onChange={e => setField('after_image', e.target.value)} placeholder="https://..." style={inputStyle} />
-                                {form.after_image && form.after_image.startsWith('http') && (
+                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    <input
+                                        value={form.after_image}
+                                        onChange={e => setField('after_image', e.target.value)}
+                                        placeholder="https://..."
+                                        style={{ ...inputStyle, flex: 1 }}
+                                    />
+                                    <label style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        padding: '10px 14px',
+                                        background: 'var(--color-bg-secondary)',
+                                        border: '1px solid var(--color-border)',
+                                        borderRadius: 'var(--radius-md)',
+                                        color: 'var(--color-text-secondary)',
+                                        cursor: uploadingAfterImage ? 'not-allowed' : 'pointer',
+                                        fontSize: 13,
+                                        fontWeight: 500,
+                                        transition: 'all var(--transition-fast)',
+                                        opacity: uploadingAfterImage ? 0.7 : 1,
+                                        whiteSpace: 'nowrap',
+                                    }}>
+                                        <Upload size={14} />
+                                        {uploadingAfterImage ? '...' : 'Upload'}
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            disabled={uploadingAfterImage}
+                                            style={{ display: 'none' }}
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                setUploadingAfterImage(true);
+                                                try {
+                                                    const url = await uploadFile(file);
+                                                    setField('after_image', url);
+                                                } catch (err: any) {
+                                                    alert(err.message || 'Upload failed');
+                                                } finally {
+                                                    setUploadingAfterImage(false);
+                                                }
+                                            }}
+                                        />
+                                    </label>
+                                </div>
+                                {form.after_image && (
                                     <div style={{ marginTop: 8, width: 80, height: 60, borderRadius: 'var(--radius-sm)', overflow: 'hidden', background: 'var(--color-bg-tertiary)', position: 'relative' }}>
                                         <img src={form.after_image} alt="After preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                     </div>

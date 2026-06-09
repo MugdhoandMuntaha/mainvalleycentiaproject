@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
-import { getWishlist, addToWishlist, removeFromWishlist } from './supabase/queries';
+import { getWishlist, addToWishlist, removeFromWishlist } from './db/queries';
 import { useCart } from './CartContext';
 
 interface WishlistContextType {

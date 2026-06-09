@@ -1,8 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import type { User, AuthError } from '@supabase/supabase-js';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import { useSession, signIn as nextAuthSignIn, signOut as nextAuthSignOut } from 'next-auth/react';
 
 /* ===== Types ===== */
 export type UserRole = 'customer' | 'admin';
@@ -17,14 +16,27 @@ export interface UserProfile {
     role: UserRole;
 }
 
+// Extend session user type
+interface SessionUser {
+    id: string;
+    email: string;
+    name?: string | null;
+    image?: string | null;
+    role: UserRole;
+    fullName: string | null;
+    displayName: string | null;
+    avatarUrl: string | null;
+    createdAt: string | null;
+}
+
 interface AuthContextType {
-    user: User | null;
+    user: SessionUser | null;
     role: UserRole;
     profile: UserProfile | null;
     loading: boolean;
-    signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-    signUp: (email: string, password: string, name: string) => Promise<{ error: AuthError | null }>;
-    signInWithGoogle: () => Promise<{ error: AuthError | null }>;
+    signIn: (email: string, password: string) => Promise<{ error: { message: string } | null }>;
+    signUp: (email: string, password: string, name: string) => Promise<{ error: { message: string } | null }>;
+    signInWithGoogle: () => Promise<{ error: { message: string } | null }>;
     signOut: () => Promise<void>;
     updateProfile: (updates: Partial<Omit<UserProfile, 'role'>>) => Promise<{ error: string | null }>;
     refreshProfile: () => Promise<void>;
@@ -34,172 +46,144 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 /* ===== Provider ===== */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [user, setUser] = useState<User | null>(null);
-    const [role, setRole] = useState<UserRole>('customer');
-    const [profile, setProfile] = useState<UserProfile | null>(null);
-    const [loading, setLoading] = useState(true);
-    const initialLoadDone = useRef(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    const supabase = useMemo(() => createClient(), []);
+    const { data: session, status, update } = useSession();
+    const [profileOverrides, setProfileOverrides] = useState<Partial<UserProfile>>({});
 
-    // Fetch full profile from user_profiles table
-    const fetchProfile = useCallback(async (userId: string) => {
-        try {
-            const { data, error } = await supabase
-                .from('user_profiles')
-                .select('full_name, display_name, phone, avatar_url, date_of_birth, gender, role')
-                .eq('id', userId)
-                .single();
+    const loading = status === 'loading';
 
-            if (!error && data) {
-                const userProfile: UserProfile = {
-                    full_name: data.full_name,
-                    display_name: data.display_name,
-                    phone: data.phone,
-                    avatar_url: data.avatar_url,
-                    date_of_birth: data.date_of_birth,
-                    gender: data.gender,
-                    role: (data.role as UserRole) || 'customer',
-                };
-                setProfile(userProfile);
-                setRole(userProfile.role);
-            } else {
-                setProfile(null);
-                setRole('customer');
-            }
-        } catch {
-            setProfile(null);
-            setRole('customer');
-        }
-    }, [supabase]);
+    const user: SessionUser | null = useMemo(() => {
+        if (!session?.user) return null;
+        const u = session.user as Record<string, unknown>;
+        return {
+            id: (u.id as string) || '',
+            email: (u.email as string) || '',
+            name: (u.name as string) || null,
+            image: (u.image as string) || null,
+            role: ((u.role as UserRole) || 'customer'),
+            fullName: (u.fullName as string) || null,
+            displayName: (u.displayName as string) || null,
+            avatarUrl: (u.avatarUrl as string) || (u.image as string) || null,
+            createdAt: (u.createdAt as string) || null,
+        };
+    }, [session]);
 
-    useEffect(() => {
-        // Get initial session — only this handles the first load
-        supabase.auth.getUser().then(async ({ data: { user } }) => {
-            setUser(user);
-            if (user) {
-                await fetchProfile(user.id);
-            }
-            initialLoadDone.current = true;
-            setLoading(false);
-        }).catch(() => {
-            initialLoadDone.current = true;
-            setLoading(false);
-        });
+    const role: UserRole = user?.role || 'customer';
 
-        // Listen for auth changes AFTER initial load
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (_event, session) => {
-                // Skip events until getUser() has finished to avoid race condition
-                if (!initialLoadDone.current) return;
-
-                const currentUser = session?.user ?? null;
-
-                if (currentUser) {
-                    // Fetch profile BEFORE updating state to avoid intermediate
-                    // state where user is set but role is still 'customer'
-                    try {
-                        const { data, error } = await supabase
-                            .from('user_profiles')
-                            .select('full_name, display_name, phone, avatar_url, date_of_birth, gender, role')
-                            .eq('id', currentUser.id)
-                            .single();
-
-                        if (!error && data) {
-                            const userProfile: UserProfile = {
-                                full_name: data.full_name,
-                                display_name: data.display_name,
-                                phone: data.phone,
-                                avatar_url: data.avatar_url,
-                                date_of_birth: data.date_of_birth,
-                                gender: data.gender,
-                                role: (data.role as UserRole) || 'customer',
-                            };
-                            setProfile(userProfile);
-                            setRole(userProfile.role);
-                        }
-                    } catch {
-                        // Keep existing profile/role on error
-                    }
-                    setUser(currentUser);
-                } else {
-                    setUser(null);
-                    setRole('customer');
-                    setProfile(null);
-                }
-                setLoading(false);
-            }
-        );
-
-        return () => subscription.unsubscribe();
-    }, [supabase.auth, fetchProfile]);
+    const profile: UserProfile | null = useMemo(() => {
+        if (!user) return null;
+        return {
+            full_name: profileOverrides.full_name ?? user.fullName,
+            display_name: profileOverrides.display_name ?? user.displayName,
+            phone: profileOverrides.phone ?? null,
+            avatar_url: profileOverrides.avatar_url ?? user.avatarUrl,
+            date_of_birth: profileOverrides.date_of_birth ?? null,
+            gender: profileOverrides.gender ?? null,
+            role: user.role,
+        };
+    }, [user, profileOverrides]);
 
     const signIn = useCallback(async (email: string, password: string) => {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        return { error };
-    }, [supabase.auth]);
+        try {
+            const result = await nextAuthSignIn('credentials', {
+                email,
+                password,
+                redirect: false,
+            });
+
+            if (result?.error) {
+                return { error: { message: result.error } };
+            }
+            return { error: null };
+        } catch (err) {
+            return { error: { message: err instanceof Error ? err.message : 'Sign in failed' } };
+        }
+    }, []);
 
     const signUp = useCallback(async (email: string, password: string, name: string) => {
-        const { error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-                data: { full_name: name },
-            },
-        });
-        return { error };
-    }, [supabase.auth]);
+        try {
+            // Call custom register endpoint
+            const res = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password, name }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                return { error: { message: data.error || 'Registration failed' } };
+            }
+
+            // Auto sign-in after registration
+            const signInResult = await nextAuthSignIn('credentials', {
+                email,
+                password,
+                redirect: false,
+            });
+
+            if (signInResult?.error) {
+                // Registration succeeded but auto-login failed — still a success
+                return { error: null };
+            }
+
+            return { error: null };
+        } catch (err) {
+            return { error: { message: err instanceof Error ? err.message : 'Registration failed' } };
+        }
+    }, []);
 
     const signInWithGoogle = useCallback(async () => {
-        const { error } = await supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-                redirectTo: `${window.location.origin}/auth/callback`,
-            },
-        });
-        return { error };
-    }, [supabase.auth]);
+        try {
+            await nextAuthSignIn('google', { callbackUrl: '/profile' });
+            return { error: null };
+        } catch (err) {
+            return { error: { message: err instanceof Error ? err.message : 'Google sign in failed' } };
+        }
+    }, []);
 
-    const signOut = useCallback(async () => {
-        await supabase.auth.signOut();
-        setUser(null);
-        setRole('customer');
-        setProfile(null);
-    }, [supabase.auth]);
+    const signOutFn = useCallback(async () => {
+        setProfileOverrides({});
+        await nextAuthSignOut({ callbackUrl: '/' });
+    }, []);
 
-    // Update profile fields in user_profiles table
     const updateProfile = useCallback(async (updates: Partial<Omit<UserProfile, 'role'>>) => {
         if (!user) return { error: 'Not authenticated' };
 
         try {
-            const { error } = await supabase
-                .from('user_profiles')
-                .update({ ...updates, updated_at: new Date().toISOString() })
-                .eq('id', user.id);
+            const res = await fetch('/api/auth/profile', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates),
+            });
 
-            if (error) {
-                return { error: error.message };
+            const data = await res.json();
+
+            if (!res.ok) {
+                return { error: data.error || 'Failed to update profile' };
             }
 
-            // Refresh the local profile state
-            await fetchProfile(user.id);
+            // Update local state
+            setProfileOverrides(prev => ({ ...prev, ...updates }));
+
+            // Trigger NextAuth session update to refresh JWT
+            await update();
+
             return { error: null };
         } catch (err) {
             return { error: err instanceof Error ? err.message : 'Failed to update profile' };
         }
-    }, [user, supabase, fetchProfile]);
+    }, [user, update]);
 
-    // Allow manual refresh of profile
     const refreshProfile = useCallback(async () => {
         if (user) {
-            await fetchProfile(user.id);
+            await update();
         }
-    }, [user, fetchProfile]);
+    }, [user, update]);
 
     return (
         <AuthContext.Provider value={{
             user, role, profile, loading,
-            signIn, signUp, signInWithGoogle, signOut,
+            signIn, signUp, signInWithGoogle, signOut: signOutFn,
             updateProfile, refreshProfile,
         }}>
             {children}

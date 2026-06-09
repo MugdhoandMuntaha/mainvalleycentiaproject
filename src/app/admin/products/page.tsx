@@ -7,8 +7,8 @@ import {
     Plus, Search, Edit2, Trash2, Package, TrendingUp,
     AlertTriangle, X, ChevronLeft, ChevronRight,
 } from 'lucide-react';
-import { getAdminProducts, deleteProduct } from '@/lib/supabase/adminQueries';
-import type { AdminProduct } from '@/lib/supabase/adminQueries';
+import { getAdminProducts, deleteProduct } from '@/lib/db/adminQueries';
+import type { AdminProduct } from '@/lib/db/adminQueries';
 
 export default function AdminProductsPage() {
     const [products, setProducts] = useState<AdminProduct[]>([]);
@@ -308,6 +308,19 @@ export default function AdminProductsPage() {
                                                     marginLeft: 6,
                                                 }}>
                                                     ৳{product.compare_at_price}
+                                                </span>
+                                            )}
+                                            {product.compare_at_price && product.discount_percent > 0 && (
+                                                <span style={{
+                                                    fontSize: 11,
+                                                    fontWeight: 600,
+                                                    color: 'var(--color-success)',
+                                                    marginLeft: 6,
+                                                    background: 'rgba(34, 197, 94, 0.1)',
+                                                    padding: '2px 6px',
+                                                    borderRadius: 4,
+                                                }}>
+                                                    {product.discount_percent}% OFF
                                                 </span>
                                             )}
                                         </td>

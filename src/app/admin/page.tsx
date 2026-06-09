@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Package, TrendingUp, AlertTriangle, Plus, Image as ImageIcon, FileText } from 'lucide-react';
-import { getAdminProducts } from '@/lib/supabase/adminQueries';
+import { getAdminProducts } from '@/lib/db/adminQueries';
 
 export default function AdminDashboard() {
     const [stats, setStats] = useState({ total: 0, active: 0, outOfStock: 0 });
