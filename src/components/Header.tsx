@@ -1297,7 +1297,7 @@ export default function Header() {
                     className="desktop-nav"
                     style={{
                         background: '#1a1a1a',
-                        borderTop: '1px solid #2a2a2a',
+                        borderTop: '1px solid #222',
                         display: 'flex',
                         justifyContent: 'center',
                     }}

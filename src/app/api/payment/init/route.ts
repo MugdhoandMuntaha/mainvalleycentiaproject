@@ -23,7 +23,9 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { userId, items, address, subtotal, shipping, tax, total } = body;
 
-        if (!userId || !items?.length || !address || !total) {
+        const isGuest = !userId || userId === 'guest';
+
+        if ((!userId && !isGuest) || !items?.length || !address || !total) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
@@ -44,7 +46,7 @@ export async function POST(req: NextRequest) {
 
         // 1. Create order in DB
         const order = await Order.create({
-            userId: new mongoose.Types.ObjectId(userId),
+            userId: isGuest ? null : new mongoose.Types.ObjectId(userId),
             orderNumber: orderNumber,
             shippingName: address.full_name,
             shippingPhone: address.phone,

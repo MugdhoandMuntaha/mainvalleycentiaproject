@@ -35,8 +35,85 @@ export default function CheckoutPage() {
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [paying, setPaying] = useState(false);
     const [error, setError] = useState('');
-    const [paymentMethod, setPaymentMethod] = useState<'online' | 'cod'>('online');
+    const [paymentMethod, setPaymentMethod] = useState<'online' | 'cod'>('cod');
     const navigatingAway = useRef(false);
+    const [guestEmail, setGuestEmail] = useState('');
+    const [guestAddress, setGuestAddress] = useState<AddressFormData>({
+        label: 'Home', full_name: '', phone: '', address_line_1: '',
+        address_line_2: '', city: '', state: '', postal_code: '', country: 'Bangladesh',
+        landmark: '', is_default: false,
+    });
+    const [agreedToTerms, setAgreedToTerms] = useState(false);
+    const [detectingLocation, setDetectingLocation] = useState(false);
+
+    const handleDetectLocation = (target: 'guest' | 'form') => {
+        if (typeof window !== 'undefined' && !window.isSecureContext) {
+            setError('Auto-detect requires a secure (HTTPS) connection on mobile devices. Please enter address details manually or use an HTTPS connection.');
+            return;
+        }
+        if (!navigator.geolocation) {
+            setError('Geolocation is not supported by your browser.');
+            return;
+        }
+        setDetectingLocation(true);
+        setError('');
+
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const { latitude, longitude } = position.coords;
+                try {
+                    const res = await fetch(`/api/geocode?lat=${latitude}&lon=${longitude}`);
+                    const data = await res.json();
+                    
+                    if (data && data.address) {
+                        const addr = data.address;
+                        const road = addr.road || addr.street || '';
+                        const suburb = addr.suburb || addr.neighbourhood || addr.village || addr.town || '';
+                        const city = addr.city || addr.town || addr.village || addr.municipality || addr.county || '';
+                        const state = (addr.state_district || addr.county || addr.state || '').replace(/\b(District|Division)\b/gi, '').trim();
+                        const postalCode = addr.postcode || '';
+                        const country = addr.country || 'Bangladesh';
+
+                        const line1 = [road, suburb].filter(Boolean).join(', ') || city;
+                        const line2 = addr.suburb || '';
+
+                        const mapped = {
+                            address_line_1: line1,
+                            address_line_2: line2,
+                            city: city,
+                            state: state,
+                            postal_code: postalCode,
+                            country: country,
+                        };
+
+                        if (target === 'guest') {
+                            setGuestAddress(prev => ({
+                                ...prev,
+                                ...mapped,
+                            }));
+                        } else {
+                            setAddrForm(prev => ({
+                                ...prev,
+                                ...mapped,
+                            }));
+                        }
+                    } else {
+                        setError('Could not retrieve address details for your coordinates.');
+                    }
+                } catch (err) {
+                    setError('Failed to fetch address. Please enter manually.');
+                } finally {
+                    setDetectingLocation(false);
+                }
+            },
+            (err) => {
+                setError(err.message || 'Geolocation access denied.');
+                setDetectingLocation(false);
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    };
+
     const addressSectionRef = useRef<HTMLDivElement>(null);
     const [shakeWarning, setShakeWarning] = useState(false);
     const [blinkAddresses, setBlinkAddresses] = useState(false);
@@ -47,15 +124,13 @@ export default function CheckoutPage() {
     const [promoCode, setPromoCode] = useState<string | null>(null);
     const [promoDiscount, setPromoDiscount] = useState(0);
 
-    const selectedAddress = addresses.find(a => a.id === selectedAddr);
+    const selectedAddress = user
+        ? addresses.find(a => a.id === selectedAddr)
+        : guestAddress;
     const isDhaka = selectedAddress?.city?.toLowerCase().includes('dhaka') ?? false;
     const shippingFee = isDhaka ? shippingFeeDhaka : shippingFeeOutside;
     const shipping = totalPrice >= freeShippingThreshold ? 0 : shippingFee;
     const grandTotal = Math.ceil(totalPrice - promoDiscount + shipping);
-
-    useEffect(() => {
-        if (!authLoading && !user) router.push('/auth');
-    }, [user, authLoading, router]);
 
     useEffect(() => {
         Promise.all([
@@ -98,7 +173,13 @@ export default function CheckoutPage() {
         setAddrLoading(false);
     }, [user]);
 
-    useEffect(() => { if (user) loadAddresses(); }, [user, loadAddresses]);
+    useEffect(() => {
+        if (user) {
+            loadAddresses();
+        } else {
+            setAddrLoading(false);
+        }
+    }, [user, loadAddresses]);
 
     const openAddrCreate = () => {
         setEditingAddrId(null);
@@ -151,20 +232,43 @@ export default function CheckoutPage() {
     };
 
     const handlePay = async () => {
-        if (!user) return;
-        if (!selectedAddr) {
-            setShowWarning(true);
-            setShakeWarning(true);
-            setBlinkAddresses(true);
-            addressSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            setTimeout(() => {
-                setShakeWarning(false);
-                setBlinkAddresses(false);
-            }, 800);
-            setError('Please select a delivery address');
+        if (!agreedToTerms) {
+            setError('You must agree to the Terms of Service and Privacy Policy to place your order.');
             return;
         }
-        const addr = addresses.find(a => a.id === selectedAddr);
+        let addr;
+        let email = '';
+        if (user) {
+            if (!selectedAddr) {
+                setShowWarning(true);
+                setShakeWarning(true);
+                setBlinkAddresses(true);
+                addressSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => {
+                    setShakeWarning(false);
+                    setBlinkAddresses(false);
+                }, 800);
+                setError('Please select a delivery address');
+                return;
+            }
+            addr = addresses.find(a => a.id === selectedAddr);
+            email = user.email || '';
+        } else {
+            if (guestEmail && !guestEmail.includes('@')) {
+                setError('Please enter a valid email address');
+                return;
+            }
+            if (!guestAddress.full_name || !guestAddress.phone || !guestAddress.address_line_1 || !guestAddress.city || !guestAddress.state) {
+                setError('Please fill all required shipping fields');
+                return;
+            }
+            addr = {
+                ...guestAddress,
+                postal_code: '1000',
+                country: 'Bangladesh'
+            };
+            email = guestEmail || 'guest@valleycentia.com';
+        }
         if (!addr) return;
 
         setPaying(true);
@@ -172,8 +276,8 @@ export default function CheckoutPage() {
 
         try {
             const orderPayload = {
-                userId: user.id,
-                email: user.email,
+                userId: user ? user.id : 'guest',
+                email: email,
                 items: items.map(i => ({ id: i.id, name: i.name, image: i.image, slug: i.slug, size: i.size, quantity: i.quantity, price: i.price })),
                 address: {
                     full_name: addr.full_name,
@@ -236,7 +340,7 @@ export default function CheckoutPage() {
         }
     };
 
-    if (authLoading || !user || !isHydrated) {
+    if (authLoading || !isHydrated) {
         return <CheckoutPageSkeleton />;
     }
 
@@ -267,9 +371,103 @@ export default function CheckoutPage() {
                                 <h2 className="co-step-title">Delivery Address</h2>
                             </div>
 
-                            {addrLoading ? (
+                             {addrLoading ? (
                                 <div className="co-center-pad">
                                     <Loader2 size={20} color="#f5c518" className="co-spinner" />
+                                </div>
+                            ) : !user ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                    <button
+                                        type="button"
+                                        disabled={detectingLocation}
+                                        onClick={() => handleDetectLocation('guest')}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                            width: '100%', padding: '12px', background: '#fafafa', border: '1.5px solid #e0e0e0',
+                                            borderRadius: '10px', fontSize: '13px', fontWeight: 600, color: '#1a1a1a',
+                                            cursor: detectingLocation ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                                            fontFamily: "'Inter', sans-serif", marginBottom: '6px'
+                                        }}
+                                        onMouseEnter={e => { if (!detectingLocation) { e.currentTarget.style.background = '#f0f0f0'; e.currentTarget.style.borderColor = '#ccc'; } }}
+                                        onMouseLeave={e => { if (!detectingLocation) { e.currentTarget.style.background = '#fafafa'; e.currentTarget.style.borderColor = '#e0e0e0'; } }}
+                                    >
+                                        {detectingLocation ? (
+                                            <>
+                                                <Loader2 size={16} className="co-spinner" />
+                                                Detecting Exact Address...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <MapPin size={16} color="#d4a300" />
+                                                Auto Detect My Location
+                                            </>
+                                        )}
+                                    </button>
+
+                                    <div className="co-form-field">
+                                        <label className="co-label">Full Name *</label>
+                                        <input
+                                            value={guestAddress.full_name}
+                                            onChange={e => setGuestAddress(prev => ({ ...prev, full_name: e.target.value }))}
+                                            placeholder="Your name"
+                                            className="co-input"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="co-form-grid">
+                                        <div>
+                                            <label className="co-label">Phone *</label>
+                                            <input
+                                                value={guestAddress.phone}
+                                                onChange={e => setGuestAddress(prev => ({ ...prev, phone: e.target.value }))}
+                                                placeholder="017XXXXXXXX"
+                                                className="co-input"
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="co-label">Email Address (Optional)</label>
+                                            <input
+                                                type="email"
+                                                value={guestEmail}
+                                                onChange={e => setGuestEmail(e.target.value)}
+                                                placeholder="you@example.com"
+                                                className="co-input"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="co-form-grid">
+                                        <div>
+                                            <label className="co-label">District *</label>
+                                            <input
+                                                value={guestAddress.state}
+                                                onChange={e => setGuestAddress(prev => ({ ...prev, state: e.target.value }))}
+                                                placeholder="Dhaka"
+                                                className="co-input"
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="co-label">City / Upazila / Town *</label>
+                                            <input
+                                                value={guestAddress.city}
+                                                onChange={e => setGuestAddress(prev => ({ ...prev, city: e.target.value }))}
+                                                placeholder="Dhaka"
+                                                className="co-input"
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="co-form-field">
+                                        <label className="co-label">Detailed Address (Village, Town, Street, House) *</label>
+                                        <input
+                                            value={guestAddress.address_line_1}
+                                            onChange={e => setGuestAddress(prev => ({ ...prev, address_line_1: e.target.value }))}
+                                            placeholder="e.g. Village: X, Post: Y, House: Z"
+                                            className="co-input"
+                                            required
+                                        />
+                                    </div>
                                 </div>
                             ) : addresses.length === 0 && !showAddrForm ? (
                                 <div className="co-empty-addr">
@@ -331,6 +529,32 @@ export default function CheckoutPage() {
                                             <X size={16} color="#999" />
                                         </button>
                                     </div>
+                                    <button
+                                        type="button"
+                                        disabled={detectingLocation}
+                                        onClick={() => handleDetectLocation('form')}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                            width: '100%', padding: '10px', background: '#fafafa', border: '1.5px solid #e0e0e0',
+                                            borderRadius: '8px', fontSize: '12px', fontWeight: 600, color: '#1a1a1a',
+                                            cursor: detectingLocation ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                                            fontFamily: "'Inter', sans-serif", marginBottom: '14px'
+                                        }}
+                                        onMouseEnter={e => { if (!detectingLocation) { e.currentTarget.style.background = '#f0f0f0'; e.currentTarget.style.borderColor = '#ccc'; } }}
+                                        onMouseLeave={e => { if (!detectingLocation) { e.currentTarget.style.background = '#fafafa'; e.currentTarget.style.borderColor = '#e0e0e0'; } }}
+                                    >
+                                        {detectingLocation ? (
+                                            <>
+                                                <Loader2 size={14} className="co-spinner" />
+                                                Detecting Exact Address...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <MapPin size={14} color="#d4a300" />
+                                                Auto Detect My Location
+                                            </>
+                                        )}
+                                    </button>
                                     <div className="co-form-grid">
                                         <div>
                                             <label className="co-label">Label</label>
@@ -474,6 +698,29 @@ export default function CheckoutPage() {
                                     <div className="co-pay-name">Cash on Delivery</div>
                                     <div className="co-pay-desc">Pay when you receive your order</div>
                                 </div>
+                            </label>
+                        </div>
+
+                        {/* Terms & Conditions Checkbox */}
+                        <div style={{ marginBottom: '14px', marginTop: '10px' }}>
+                            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', fontSize: '12px', color: '#555', userSelect: 'none' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={agreedToTerms}
+                                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                                    style={{ marginTop: '2px', cursor: 'pointer' }}
+                                />
+                                <span>
+                                    I agree to the{' '}
+                                    <Link href="/terms" target="_blank" style={{ color: '#1a1a1a', fontWeight: 600, textDecoration: 'underline' }}>
+                                        Terms of Service
+                                    </Link>{' '}
+                                    and{' '}
+                                    <Link href="/privacy" target="_blank" style={{ color: '#1a1a1a', fontWeight: 600, textDecoration: 'underline' }}>
+                                        Privacy Policy
+                                    </Link>
+                                    .
+                                </span>
                             </label>
                         </div>
 

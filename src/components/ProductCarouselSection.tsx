@@ -264,9 +264,10 @@ export default function ProductCarouselSection({
                                                 borderRadius: '0 0 6px 0',
                                                 zIndex: 3,
                                                 letterSpacing: '0.3px',
+                                                textTransform: 'uppercase',
                                             }}
                                         >
-                                            {product.badge}
+                                            {product.badge.replace(/_/g, ' ')}
                                         </span>
                                     );
                                 })()}
@@ -315,7 +316,7 @@ export default function ProductCarouselSection({
                                         src={product.image}
                                         alt={product.title}
                                         fill
-                                        sizes="25vw"
+                                        sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
                                         style={{ objectFit: 'cover' }}
                                     />
                                 </div>

@@ -68,7 +68,7 @@ html {
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
   background-color: var(--color-bg);
   color: var(--color-text-primary);
   line-height: 1.6;
@@ -83,7 +83,7 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: 'Outfit', 'Inter', sans-serif;
+  font-family: var(--font-outfit), var(--font-inter), sans-serif;
   font-weight: 700;
   line-height: 1.15;
 }

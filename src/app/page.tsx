@@ -43,7 +43,7 @@ const NON_PRODUCT_SECTION_TYPES = ['hero_carousel', 'brands_that_lead', 'visible
 /** Alternate default backgrounds for product sections */
 const DEFAULT_BACKGROUNDS = ['#ffffff', '#f9f9f6'];
 
-export const revalidate = 0; // Force dynamic rendering so data is always fresh
+export const revalidate = 60; // Regenerate homepage at most once every 60 seconds (ISR)
 
 export default async function HomePage() {
   // Fetch all data server-side in parallel

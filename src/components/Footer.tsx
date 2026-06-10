@@ -1,10 +1,12 @@
 'use client';
 
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Mail, MapPin, Phone, Facebook, Instagram, Twitter, Youtube } from 'lucide-react';
 import Image from 'next/image';
+import { getSiteSettings } from '@/lib/db/queries';
 
-const footerLinks = {
+const DEFAULT_FOOTER_LINKS = {
     shop: [
         { name: 'New Arrivals', href: '/shop?sort=new' },
         { name: 'Best Sellers', href: '/shop?sort=popular' },
@@ -19,25 +21,57 @@ const footerLinks = {
     ],
     support: [
         { name: 'Help Center', href: '/help' },
-        { name: 'Shipping Info', href: '/shipping' },
-        { name: 'Returns', href: '/returns' },
+        { name: 'Delivery Policy', href: '/shipping' },
+        { name: 'Return & Refund Policy', href: '/returns' },
         { name: 'Order Tracking', href: '/tracking' },
     ],
     legal: [
         { name: 'Privacy Policy', href: '/privacy' },
-        { name: 'Terms of Service', href: '/terms' },
+        { name: 'Terms & Conditions', href: '/terms' },
         { name: 'Cookie Policy', href: '/cookies' },
     ],
 };
 
-const socialLinks = [
-    { icon: Facebook, href: '#', label: 'Facebook' },
-    { icon: Instagram, href: '#', label: 'Instagram' },
-    { icon: Twitter, href: '#', label: 'Twitter' },
-    { icon: Youtube, href: '#', label: 'Youtube' },
-];
-
 export default function Footer() {
+    const [settings, setSettings] = useState<any>(null);
+
+    useEffect(() => {
+        getSiteSettings().then(data => {
+            setSettings(data);
+        }).catch(err => {
+            console.error('Failed to fetch footer settings:', err);
+        });
+    }, []);
+
+    // Extract dynamic footer parameters with safe fallbacks
+    const aboutText = settings?.footer_about_text?.text || 
+        'Curating premium fashion and accessories for the modern lifestyle. Quality craftsmanship meets contemporary design.';
+
+    const contactEmail = settings?.footer_contact_info?.email || 'hello@valleycentia.com';
+    const contactPhone = settings?.footer_contact_info?.phone || '+1 (234) 567-890';
+    const contactAddress = settings?.footer_contact_info?.address || 'New York, NY 10001';
+
+    const facebookUrl = settings?.footer_social_links?.facebook || '#';
+    const instagramUrl = settings?.footer_social_links?.instagram || '#';
+    const twitterUrl = settings?.footer_social_links?.twitter || '#';
+    const youtubeUrl = settings?.footer_social_links?.youtube || '#';
+
+    const socialLinks = [
+        { icon: Facebook, href: facebookUrl, label: 'Facebook' },
+        { icon: Instagram, href: instagramUrl, label: 'Instagram' },
+        { icon: Twitter, href: twitterUrl, label: 'Twitter' },
+        { icon: Youtube, href: youtubeUrl, label: 'Youtube' },
+    ];
+
+    let footerLinks = DEFAULT_FOOTER_LINKS;
+    if (settings?.footer_links?.links_json) {
+        try {
+            footerLinks = JSON.parse(settings.footer_links.links_json);
+        } catch (e) {
+            console.error('Failed to parse footer_links JSON from settings', e);
+        }
+    }
+
     return (
         <footer
             style={{
@@ -61,7 +95,7 @@ export default function Footer() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                     <Link href="/" style={{ display: 'inline-flex', alignItems: 'center' }}>
                         <Image
-                            src="/logo2.png"
+                            src="/logo69.png"
                             alt="ValleyCentia Logo"
                             width={180}
                             height={45}
@@ -76,14 +110,13 @@ export default function Footer() {
                             maxWidth: '280px',
                         }}
                     >
-                        Curating premium fashion and accessories for the modern lifestyle.
-                        Quality craftsmanship meets contemporary design.
+                        {aboutText}
                     </p>
 
                     {/* Contact Info */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         <a
-                            href="mailto:hello@valleycentia.com"
+                            href={`mailto:${contactEmail}`}
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -96,10 +129,10 @@ export default function Footer() {
                             onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
                         >
                             <Mail size={15} />
-                            hello@valleycentia.com
+                            {contactEmail}
                         </a>
                         <a
-                            href="tel:+1234567890"
+                            href={`tel:${contactPhone}`}
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -112,7 +145,7 @@ export default function Footer() {
                             onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-muted)')}
                         >
                             <Phone size={15} />
-                            +1 (234) 567-890
+                            {contactPhone}
                         </a>
                         <span
                             style={{
@@ -124,7 +157,7 @@ export default function Footer() {
                             }}
                         >
                             <MapPin size={15} />
-                            New York, NY 10001
+                            {contactAddress}
                         </span>
                     </div>
                 </div>
@@ -145,7 +178,7 @@ export default function Footer() {
                             {title}
                         </h4>
                         <ul style={{ display: 'flex', flexDirection: 'column', gap: '12px', listStyle: 'none' }}>
-                            {links.map((link) => (
+                            {Array.isArray(links) && links.map((link) => (
                                 <li key={link.name}>
                                     <Link
                                         href={link.href}
@@ -236,7 +269,6 @@ export default function Footer() {
                     ))}
                 </div>
             </div>
-
         </footer>
     );
 }

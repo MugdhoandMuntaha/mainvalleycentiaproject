@@ -1,0 +1,43 @@
+// Barrel export for all Mongoose models
+export { default as User } from './User';
+export { default as Product } from './Product';
+export { default as Brand } from './Brand';
+export { default as Category } from './Category';
+export { default as Order } from './Order';
+export { default as Coupon } from './Coupon';
+export { default as ProductCoupon } from './ProductCoupon';
+export { default as Address } from './Address';
+export { default as CartItem } from './CartItem';
+export { default as WishlistItem } from './WishlistItem';
+export { default as Review } from './Review';
+export { default as HomepageSection } from './HomepageSection';
+export { default as HeroSlide } from './HeroSlide';
+export { default as NavLink } from './NavLink';
+export { default as VisibleChange } from './VisibleChange';
+export { default as TrustBadge } from './TrustBadge';
+export { default as NewsletterSubscriber } from './NewsletterSubscriber';
+export { default as Department } from './Department';
+export { default as JobListing } from './JobListing';
+export { default as JobApplication } from './JobApplication';
+export { default as CompanyTimeline } from './CompanyTimeline';
+export { default as CompanyValue } from './CompanyValue';
+export { default as Perk } from './Perk';
+export { default as SiteSetting } from './SiteSetting';
+export { default as AboutContent } from './AboutContent';
+export { default as AuditLog } from './AuditLog';
+
+// Re-export interfaces
+export type { IUser, UserRole } from './User';
+export type { IProduct } from './Product';
+export type { IBrand } from './Brand';
+export type { ICategory } from './Category';
+export type { IOrder } from './Order';
+export type { ICoupon } from './Coupon';
+export type { IAddress } from './Address';
+export type { IReview } from './Review';
+export type { IHomepageSection } from './HomepageSection';
+export type { IHeroSlide } from './HeroSlide';
+export type { INavLink } from './NavLink';
+export type { IVisibleChange } from './VisibleChange';
+export type { ISiteSetting } from './SiteSetting';
+export type { IAboutContent } from './AboutContent';

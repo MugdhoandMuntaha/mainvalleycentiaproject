@@ -101,7 +101,7 @@ export default function ProductCard({ product, index = 0 }: ProductCardProps) {
                                     textTransform: 'uppercase',
                                 }}
                             >
-                                {product.badge}
+                                {product.badge.replace(/_/g, ' ')}
                             </span>
                         );
                     })()}

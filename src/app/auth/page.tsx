@@ -25,6 +25,8 @@ function AuthPageContent() {
     const [password, setPassword] = useState('');
     const [fullName, setFullName] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [agreedToTerms, setAgreedToTerms] = useState(false);
+    const [acceptMarketing, setAcceptMarketing] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -54,6 +56,11 @@ function AuthPageContent() {
         } else {
             if (!fullName.trim()) {
                 setError('Please enter your full name.');
+                setSubmitting(false);
+                return;
+            }
+            if (!agreedToTerms) {
+                setError('You must agree to the Terms of Service and Privacy Policy to register.');
                 setSubmitting(false);
                 return;
             }
@@ -247,6 +254,43 @@ function AuthPageContent() {
                             </button>
                         </div>
                     </div>
+
+                    {/* Terms & Privacy / Marketing Checkboxes (Signup only) */}
+                    {mode === 'signup' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px', marginBottom: '8px' }}>
+                            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#555', userSelect: 'none' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={agreedToTerms}
+                                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                                    style={{ marginTop: '3px', cursor: 'pointer' }}
+                                />
+                                <span>
+                                    I agree to the{' '}
+                                    <Link href="/terms" target="_blank" style={{ color: '#1a1a1a', fontWeight: 600, textDecoration: 'underline' }}>
+                                        Terms of Service
+                                    </Link>{' '}
+                                    and{' '}
+                                    <Link href="/privacy" target="_blank" style={{ color: '#1a1a1a', fontWeight: 600, textDecoration: 'underline' }}>
+                                        Privacy Policy
+                                    </Link>
+                                    .
+                                </span>
+                            </label>
+
+                            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#555', userSelect: 'none' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={acceptMarketing}
+                                    onChange={(e) => setAcceptMarketing(e.target.checked)}
+                                    style={{ marginTop: '3px', cursor: 'pointer' }}
+                                />
+                                <span>
+                                    Keep me updated on exclusive offers, news, and promotions.
+                                </span>
+                            </label>
+                        </div>
+                    )}
 
                     {/* Error / Success */}
                     {error && (
